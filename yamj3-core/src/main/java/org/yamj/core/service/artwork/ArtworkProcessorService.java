@@ -40,7 +40,6 @@ import org.yamj.core.database.model.ArtworkLocated;
 import org.yamj.core.database.model.ArtworkProfile;
 import org.yamj.core.database.model.dto.QueueDTO;
 import org.yamj.core.database.model.type.ArtworkType;
-import org.yamj.core.database.model.type.ImageFormat;
 import org.yamj.core.database.service.ArtworkStorageService;
 import org.yamj.core.service.file.FileStorageService;
 import org.yamj.core.service.file.FileTools;
@@ -91,7 +90,20 @@ public class ArtworkProcessorService {
             boolean stored;
             try {
                 if (located.getStageFile() != null) {
-                    stored = fileStorageService.store(storageType, cacheFilename, located.getStageFile());
+                    if (StringUtils.startsWith(located.getSource(), "attachment")) {
+                        // file contains attached artwork
+                        int attachmentId = -1;
+                        try {
+                            attachmentId = Integer.parseInt(located.getSource().split("#")[1]);
+                            stored = fileStorageService.store(storageType, cacheFilename, located.getStageFile(), attachmentId);
+                        } catch (Exception e) {
+                           LOG.warn("Failed to determine attachment id from source {}", located.getSource());
+                           stored = false;
+                        }
+                    } else {
+                        // file is an artwork
+                        stored = fileStorageService.store(storageType, cacheFilename, located.getStageFile());
+                    }
                 } else {
                     stored = fileStorageService.store(storageType, cacheFilename, new URL(located.getUrl()));
                 }
@@ -101,7 +113,7 @@ public class ArtworkProcessorService {
             }
 
             if (!stored) {
-                LOG.error("Failed to store artwork store artwork in file cache: {}", cacheFilename);
+                LOG.error("Failed to store artwork in file cache: {}", cacheFilename);
                 // mark located artwork with error
                 located.setStatus(StatusType.ERROR);
                 artworkStorageService.updateArtworkLocated(located);
@@ -183,7 +195,7 @@ public class ArtworkProcessorService {
 
         // store image on stage system
         String cacheFilename = buildCacheFilename(located, profile);
-        fileStorageService.storeImage(cacheFilename, storageType, image, profile.getImageFormat(), profile.getQuality());
+        fileStorageService.storeImage(cacheFilename, storageType, image, profile.getImageType(), profile.getQuality());
 
         try {
             ArtworkGenerated generated = new ArtworkGenerated();
@@ -253,10 +265,10 @@ public class ArtworkProcessorService {
             sb.append(located.getArtwork().getSeries().getIdentifier());
             sb.append(".series.");
         } else if (located.getArtwork().getPerson() != null) {
-        	sb.append(FileTools.makeSafeFilename(located.getArtwork().getPerson().getIdentifier()));
+        	sb.append(located.getArtwork().getPerson().getIdentifier());
             sb.append(".person.");
         } else if (located.getArtwork().getBoxedSet() != null) {
-            sb.append(FileTools.makeSafeFilename(located.getArtwork().getBoxedSet().getName()));
+            sb.append(located.getArtwork().getBoxedSet().getIdentifier());
             sb.append(".boxset.");
         } else {
             // should never happen
@@ -280,17 +292,13 @@ public class ArtworkProcessorService {
         // 4. profile and suffix
         if (artworkProfile == null) {
             // it's the original image
-            sb.append("original");
-            // TODO determine suffix from URL or stage file name
-            sb.append(".jpg");
+            sb.append("original.");
+            sb.append(located.getImageType().name().toLowerCase());
         } else {
             // it's a generated image
             sb.append(artworkProfile.getProfileName().toLowerCase());
-            if (ImageFormat.PNG == artworkProfile.getImageFormat()) {
-                sb.append(".png");
-            } else {
-                sb.append(".jpg");
-            }
+            sb.append(".");
+            sb.append(artworkProfile.getImageType().name().toLowerCase());
         }
         
         return sb.toString();

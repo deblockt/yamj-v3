@@ -33,9 +33,12 @@ import org.yamj.core.config.ConfigServiceWrapper;
 import org.yamj.core.database.model.*;
 import org.yamj.core.database.model.dto.QueueDTO;
 import org.yamj.core.database.model.type.ArtworkType;
+import org.yamj.core.database.model.type.ImageType;
 import org.yamj.core.database.service.ArtworkLocatorService;
 import org.yamj.core.database.service.ArtworkStorageService;
 import org.yamj.core.service.artwork.online.*;
+import org.yamj.core.service.attachment.Attachment;
+import org.yamj.core.service.attachment.AttachmentScannerService;
 import org.yamj.core.service.file.FileTools;
 
 @Service("artworkScannerService")
@@ -61,6 +64,8 @@ public class ArtworkScannerService {
     private ArtworkStorageService artworkStorageService;
     @Autowired
     private ConfigServiceWrapper configServiceWrapper;
+    @Autowired
+    private AttachmentScannerService attachmentScannerService;
 
     public void registerArtworkScanner(IArtworkScanner artworkScanner) {
         if (artworkScanner instanceof IMoviePosterScanner) {
@@ -120,18 +125,22 @@ public class ArtworkScannerService {
         if (ArtworkType.POSTER == artwork.getArtworkType()) {
             // poster only for movie, season, series and boxed sets
             this.scanPosterLocal(artwork, locatedArtworks);
+            this.scanPosterAttached(artwork, locatedArtworks);
             this.scanPosterOnline(artwork, locatedArtworks);
         } else if (ArtworkType.FANART == artwork.getArtworkType()) {
             // fanart only for movie, season, series and boxed sets
             this.scanFanartLocal(artwork, locatedArtworks);
+            this.scanFanartAttached(artwork, locatedArtworks);
             this.scanFanartOnline(artwork, locatedArtworks);
         } else if (ArtworkType.BANNER == artwork.getArtworkType()) {
             // banner only for season, series and boxed sets
             this.scanBannerLocal(artwork, locatedArtworks);
+            this.scanBannerAttached(artwork, locatedArtworks);
             this.scanBannerOnline(artwork, locatedArtworks);
         } else if (ArtworkType.VIDEOIMAGE == artwork.getArtworkType()) {
             // video image only for episodes
             this.scanVideoImageLocal(artwork, locatedArtworks);
+            this.scanVideoImageAttached(artwork, locatedArtworks);
             this.scanVideoImageOnline(artwork, locatedArtworks);
         } else if (ArtworkType.PHOTO == artwork.getArtworkType()) {
             this.scanPhotoLocal(artwork, locatedArtworks);
@@ -174,6 +183,17 @@ public class ArtworkScannerService {
         }
 
         createLocatedArtworksLocal(artwork, posters, locatedArtworks);
+    }
+
+    private void scanPosterAttached(Artwork artwork, List<ArtworkLocated> locatedArtworks) {
+        if (!configServiceWrapper.isAttachedArtworkScanEnabled(artwork)) {
+            LOG.trace("Attached poster scan disabled: {}", artwork);
+            return;
+        }
+
+        LOG.trace("Scan attachments for poster: {}", artwork);
+        List<Attachment> attachments = attachmentScannerService.scan(artwork);
+        createLocatedArtworksAttached(artwork, attachments, locatedArtworks);
     }
 
     private void scanPosterOnline(Artwork artwork, List<ArtworkLocated> locatedArtworks) {
@@ -283,6 +303,17 @@ public class ArtworkScannerService {
         createLocatedArtworksLocal(artwork, fanarts, locatedArtworks);
     }
 
+    private void scanFanartAttached(Artwork artwork, List<ArtworkLocated> locatedArtworks) {
+        if (!configServiceWrapper.isAttachedArtworkScanEnabled(artwork)) {
+            LOG.trace("Attached fanart scan disabled: {}", artwork);
+            return;
+        }
+
+        LOG.trace("Scan attachments for fanart: {}", artwork);
+        List<Attachment> attachments = attachmentScannerService.scan(artwork);
+        createLocatedArtworksAttached(artwork, attachments, locatedArtworks);
+    }
+
     private void scanFanartOnline(Artwork artwork, List<ArtworkLocated> locatedArtworks) {
         if (!configServiceWrapper.isOnlineArtworkScanEnabled(artwork, locatedArtworks)) {
             LOG.trace("Online fanart scan disabled: {}", artwork);
@@ -383,6 +414,17 @@ public class ArtworkScannerService {
         createLocatedArtworksLocal(artwork, banners, locatedArtworks);
     }
 
+    private void scanBannerAttached(Artwork artwork, List<ArtworkLocated> locatedArtworks) {
+        if (!configServiceWrapper.isAttachedArtworkScanEnabled(artwork)) {
+            LOG.trace("Attached banner scan disabled: {}", artwork);
+            return;
+        }
+
+        LOG.trace("Scan attachments for banner: {}", artwork);
+        List<Attachment> attachments = attachmentScannerService.scan(artwork);
+        createLocatedArtworksAttached(artwork, attachments, locatedArtworks);
+    }
+
     private void scanBannerOnline(Artwork artwork, List<ArtworkLocated> locatedArtworks) {
         if (!configServiceWrapper.isOnlineArtworkScanEnabled(artwork, locatedArtworks)) {
             LOG.trace("Online banner scan disabled: {}", artwork);
@@ -442,7 +484,6 @@ public class ArtworkScannerService {
         createLocatedArtworksOnline(artwork, banners, locatedArtworks);
     }
 
-    @SuppressWarnings("unused")
     private void scanVideoImageLocal(Artwork artwork, List<ArtworkLocated> locatedArtworks) {
         if (!configServiceWrapper.isLocalArtworkScanEnabled(artwork)) {
             LOG.trace("Local episode image scan disabled: {}", artwork);
@@ -451,9 +492,25 @@ public class ArtworkScannerService {
 
         LOG.trace("Scan local for TV show episode image: {}", artwork);
 
-        // TODO local scan
+        List<StageFile> videoimages = null;
+        if (artwork.getVideoData() != null && !artwork.getVideoData().isMovie()) {
+            // TODO local scan for video images
+        }
+        
+        createLocatedArtworksLocal(artwork, videoimages, locatedArtworks);
     }
 
+    private void scanVideoImageAttached(Artwork artwork, List<ArtworkLocated> locatedArtworks) {
+        if (!configServiceWrapper.isAttachedArtworkScanEnabled(artwork)) {
+            LOG.trace("Attached episode image scan disabled: {}", artwork);
+            return;
+        }
+
+        LOG.trace("Scan attachments for TV show episode image: {}", artwork);
+        List<Attachment> attachments = attachmentScannerService.scan(artwork);
+        createLocatedArtworksAttached(artwork, attachments, locatedArtworks);
+    }
+    
     private void scanVideoImageOnline(Artwork artwork, List<ArtworkLocated> locatedArtworks) {
         if (!configServiceWrapper.isOnlineArtworkScanEnabled(artwork, locatedArtworks)) {
             LOG.trace("Online episode image scan disabled: {}", artwork);
@@ -558,7 +615,8 @@ public class ArtworkScannerService {
             located.setSource(dto.getSource());
             located.setUrl(dto.getUrl());
             located.setHashCode(dto.getHashCode());
-            located.setLanguage(dto.getLanguage());
+            located.setImageType(dto.getImageType());
+            located.setLanguageCode(dto.getLanguageCode());
             located.setRating(dto.getRating());
             located.setStatus(StatusType.NEW);
             located.setPriority(10);
@@ -578,8 +636,33 @@ public class ArtworkScannerService {
             located.setPriority(1);
             located.setStageFile(stageFile);
             located.setHashCode(stageFile.getHashCode());
-
+            located.setImageType(ImageType.fromString(stageFile.getExtension()));
+            
             if (FileTools.isFileReadable(stageFile)) {
+                located.setStatus(StatusType.NEW);
+            } else {
+                located.setStatus(StatusType.INVALID);
+            }
+            
+            locatedArtworks.add(located);
+        }
+    }
+
+    private static void createLocatedArtworksAttached(Artwork artwork, List<Attachment> attachments, List<ArtworkLocated> locatedArtworks) {
+        if (CollectionUtils.isEmpty(attachments)) {
+            return;
+        }
+        
+        for (Attachment attachment : attachments) {
+            ArtworkLocated located = new ArtworkLocated();
+            located.setArtwork(artwork);
+            located.setSource("attachment#"+attachment.getAttachmentId());
+            located.setPriority(1);
+            located.setStageFile(attachment.getStageFile());
+            located.setHashCode(attachment.getStageFile().getHashCode(attachment.getAttachmentId()));
+            located.setImageType(attachment.getImageType());
+            
+            if (FileTools.isFileReadable(attachment.getStageFile())) {
                 located.setStatus(StatusType.NEW);
             } else {
                 located.setStatus(StatusType.INVALID);

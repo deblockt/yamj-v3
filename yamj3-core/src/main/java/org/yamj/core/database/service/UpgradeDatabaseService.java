@@ -39,28 +39,20 @@ public class UpgradeDatabaseService {
     
     @PostConstruct
     public void init() {
+        // Issues: #234, #237, enhancements
+        // Date:   10.08.2015
+        try {
+            upgradeDatabaseDao.patchConfiguration();
+        } catch (Exception ex) {
+            LOG.warn("Failed upgrade 'patchConfiguration'", ex);
+        }
+
         // Issues: #222
         // Date:   18.07.2015
         try {
             upgradeDatabaseDao.patchTrailers();
         } catch (Exception ex) {
             LOG.warn("Failed upgrade 'patchTrailers'", ex);
-        }
-
-        // Issues: enhancement
-        // Date:   21.07.2015
-        try {
-            upgradeDatabaseDao.patchArtworkConfig();
-        } catch (Exception ex) {
-            LOG.warn("Failed upgrade 'patchArtworkConfig'", ex);
-        }
-
-        // Issues: #234
-        // Date:   24.07.2015
-        try {
-            upgradeDatabaseDao.patchLocaleConfig();
-        } catch (Exception ex) {
-            LOG.warn("Failed upgrade 'patchLocales'", ex);
         }
 
         // Issues: #234
@@ -101,6 +93,38 @@ public class UpgradeDatabaseService {
             upgradeDatabaseDao.patchLanguageSubtitles();
         } catch (Exception ex) {
             LOG.warn("Failed upgrade 'patchLanguageSubtitles'", ex);
+        }
+
+        // Issues: enhancement
+        // Date:   10.08.2015
+        try {
+            upgradeDatabaseDao.patchArtworkLocated();
+        } catch (Exception ex) {
+            LOG.warn("Failed upgrade 'patchArtworkLocated'", ex);
+        }
+
+        // Issues: enhancement
+        // Date:   10.08.2015
+        try {
+            upgradeDatabaseDao.patchBoxedSetIdentifier();
+        } catch (Exception ex) {
+            LOG.warn("Failed upgrade 'patchBoxedSetIdentifier'", ex);
+        }
+
+        // Issues: database schema
+        // Date:   10.08.2015
+        try {
+            upgradeDatabaseDao.patchStudio();
+        } catch (Exception ex) {
+            LOG.warn("Failed upgrade 'patchStudio'", ex);
+        }
+
+        // Issues:  #193
+        // Date:   10.08.2015
+        try {
+            upgradeDatabaseDao.patchMediaFileWatched();
+        } catch (Exception ex) {
+            LOG.warn("Failed upgrade 'patchMediaFileWatched'", ex);
         }
     }
 }

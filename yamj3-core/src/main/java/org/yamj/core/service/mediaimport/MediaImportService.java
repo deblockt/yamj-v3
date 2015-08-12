@@ -41,6 +41,7 @@ import org.yamj.core.database.dao.*;
 import org.yamj.core.database.model.*;
 import org.yamj.core.database.model.type.ArtworkType;
 import org.yamj.core.database.model.type.FileType;
+import org.yamj.core.database.model.type.ImageType;
 import org.yamj.core.database.service.CommonStorageService;
 import org.yamj.core.database.service.MetadataStorageService;
 import org.yamj.core.service.file.FileTools;
@@ -150,7 +151,7 @@ public class MediaImportService {
         }
 
         // determine if watched file exists for the video file
-        boolean watchedFile = this.stagingService.isWatchedVideoFile(stageFile);
+        Date watchedFileDate = this.stagingService.maxWatchedFileDate(stageFile);
 
         // new media file
         mediaFile = new MediaFile();
@@ -165,7 +166,7 @@ public class MediaImportService {
         mediaFile.setVideoSource(dto.getVideoSource());
         mediaFile.setEpisodeCount(dto.getEpisodes().size());
         mediaFile.setStatus(StatusType.NEW);
-        mediaFile.setWatchedFile(watchedFile);
+        mediaFile.setWatchedFileDate(watchedFileDate);
         mediaFile.addStageFile(stageFile);
         stageFile.setMediaFile(mediaFile);
 
@@ -224,7 +225,7 @@ public class MediaImportService {
                 videoData.addMediaFile(mediaFile);
 
                 // set watched file if all media files are watched by file
-                watchedFile = MetadataTools.allMediaFilesWatched(videoData, false);
+                boolean watchedFile = MetadataTools.allMediaFilesWatched(videoData, false);
                 videoData.setWatchedFile(watchedFile);
 
                 // set watched API if all media files are watched by API
@@ -584,7 +585,7 @@ public class MediaImportService {
     }
 
     @Transactional
-    public boolean processNfo(long id) {
+    public void processNfo(long id) {
         StageFile stageFile = stagingDao.getStageFile(id);
         LOG.info("Process nfo {}-'{}'", stageFile.getId(), stageFile.getFileName());
 
@@ -594,7 +595,7 @@ public class MediaImportService {
             stageFile.setStatus(StatusType.INVALID);
             stagingDao.updateEntity(stageFile);
             // nothing to do anymore
-            return false;
+            return;
         }
 
         // process new NFO
@@ -628,9 +629,6 @@ public class MediaImportService {
                 LOG.debug("Marked series {}-'{}' as updated", series.getId(), series.getTitle());
             }
         }
-        
-        // return true if NFO file has relations to videos
-        return CollectionUtils.isNotEmpty(stageFile.getNfoRelations());
     }
 
     private boolean processNfoFile(StageFile stageFile) {
@@ -760,7 +758,7 @@ public class MediaImportService {
     }
 
     @Transactional
-    public boolean processImage(long id) {
+    public void processImage(long id) {
         StageFile stageFile = stagingDao.getStageFile(id);
         LOG.info("Process image {}-'{}'", stageFile.getId(), stageFile.getFileName());
 
@@ -783,8 +781,6 @@ public class MediaImportService {
             stageFile.setStatus(StatusType.NOTFOUND);
         }
         stagingDao.updateEntity(stageFile);
-        
-        return (found || updated);
     }
 
     private boolean processImageFile(StageFile stageFile) {
@@ -935,12 +931,13 @@ public class MediaImportService {
             ArtworkLocated located = new ArtworkLocated();
             located.setArtwork(artwork);
             located.setSource("file");
-            located.setPriority(priority);
             located.setStageFile(stageFile);
 
             if (!artwork.getArtworkLocated().contains(located)) {
+                located.setPriority(priority);
                 located.setHashCode(stageFile.getHashCode());
-
+                located.setImageType(ImageType.fromString(stageFile.getExtension()));
+                
                 if (FileTools.isFileReadable(stageFile)) {
                     located.setStatus(StatusType.NEW);
                 } else {

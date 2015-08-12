@@ -23,7 +23,6 @@
 package org.yamj.core.service.staging;
 
 import java.io.File;
-import java.math.BigInteger;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
@@ -46,6 +45,7 @@ import org.yamj.core.database.model.type.FileType;
 import org.yamj.core.service.file.FileTools;
 import org.yamj.core.service.mediaimport.FilenameScanner;
 
+@Transactional(readOnly = true)
 @Service("stagingService")
 public class StagingService {
 
@@ -186,19 +186,16 @@ public class StagingService {
         return cal.getTime();
     }
 
-    @Transactional
     public List<StageFile> getValidNFOFiles(VideoData videoData) {
         // read NFO files for movies
         return this.stagingDao.getValidNFOFilesForVideo(videoData.getId());
     }
 
-    @Transactional
     public List<StageFile> getValidNFOFiles(Series series) {
         // read NFO files for series
         return this.stagingDao.getValidNFOFilesForSeries(series.getId());
     }
 
-    @Transactional
     public void updateStageFile(StageFile stageFile) {
         this.stagingDao.updateEntity(stageFile);
     }
@@ -231,14 +228,12 @@ public class StagingService {
         return true;
     }
 
-    public boolean isWatchedVideoFile(StageFile videoFile) {
+    public Date maxWatchedFileDate(StageFile videoFile) {
         // get the name used for WATCHED directories
         String watchedFolderName = PropertyTools.getProperty("yamj3.folder.name.watched");
 
         boolean checkLibrary = this.configService.getBooleanProperty("yamj3.librarycheck.folder.watched", Boolean.TRUE);
-
-        BigInteger count = this.stagingDao.countWatchedFiles(videoFile, watchedFolderName, checkLibrary);
-        return (count != null && count.intValue()>0);
+        return this.stagingDao.maxWatchedFileDate(videoFile, watchedFolderName, checkLibrary);
     }
 
     public List<StageFile> findWatchedVideoFiles(StageFile watchedFile) {
@@ -297,5 +292,9 @@ public class StagingService {
         }
 
         return videoFiles;
+    }
+    
+    public List<StageFile> findVideoStageFiles(Artwork artwork) {
+        return this.stagingDao.findVideoStageFiles(artwork);
     }
 }

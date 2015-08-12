@@ -26,6 +26,7 @@ import java.util.*;
 import java.util.Map.Entry;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,6 +45,7 @@ import org.yamj.core.database.model.award.MovieAward;
 import org.yamj.core.database.model.award.SeriesAward;
 import org.yamj.core.database.model.dto.*;
 import org.yamj.core.database.model.type.ArtworkType;
+import org.yamj.core.database.model.type.ImageType;
 import org.yamj.core.database.model.type.OverrideFlag;
 import org.yamj.core.service.artwork.ArtworkTools;
 import org.yamj.core.tools.GenreXmlTools;
@@ -320,7 +322,7 @@ public class MetadataStorageService {
         }
     }
 
-    @Transactional
+    @Transactional(timeout=120)
     public void updateScannedPerson(Person person) {
         // update entity
         person.fixScannedValues();
@@ -342,7 +344,7 @@ public class MetadataStorageService {
         this.updateLocatedArtwork(person);
     }
 
-    @Transactional
+    @Transactional(timeout=300)
     public void updateScannedPersonFilmography(Person person) {
         // update entity
         metadataDao.updateEntity(person);
@@ -420,7 +422,7 @@ public class MetadataStorageService {
         updateLocatedArtwork(videoData);
     }
 
-    @Transactional(timeout=120)
+    @Transactional(timeout=300)
     public void updateScannedMetaData(Series series) {
         // update entity
         series.setLastScanned(new Date(System.currentTimeMillis()));
@@ -628,7 +630,7 @@ public class MetadataStorageService {
         List<MovieAward> deleteAwards = new ArrayList<>(videoData.getMovieAwards());
 
         for (AwardDTO dto : videoData.getAwardDTOS()) {
-            Award award = this.commonDao.getAward(dto);
+            Award award = this.commonDao.getAward(dto.getEvent(), dto.getCategory(), dto.getSource());
             if (award != null) {
                 MovieAward movieAward = new MovieAward(videoData, award, dto.getYear());
                 movieAward.setWon(dto.isWon());
@@ -662,7 +664,7 @@ public class MetadataStorageService {
         List<SeriesAward> deleteAwards = new ArrayList<>(series.getSeriesAwards());
 
         for (AwardDTO dto : series.getAwardDTOS()) {
-            Award award = this.commonDao.getAward(dto);
+            Award award = this.commonDao.getAward(dto.getEvent(), dto.getCategory(), dto.getSource());
             if (award != null) {
                 SeriesAward seriesAward = new SeriesAward(series, award, dto.getYear());
                 seriesAward.setWon(dto.isWon());
@@ -697,7 +699,7 @@ public class MetadataStorageService {
 
             BoxedSetOrder boxedSetOrder = null;
             for (BoxedSetOrder stored : videoData.getBoxedSets()) {
-                if (StringUtils.equalsIgnoreCase(stored.getBoxedSet().getName(), boxedSetDTO.getName())) {
+                if (StringUtils.equalsIgnoreCase(stored.getBoxedSet().getIdentifier(), boxedSetDTO.getIdentifier())) {
                     boxedSetOrder = stored;
                     break;
                 }
@@ -705,7 +707,7 @@ public class MetadataStorageService {
 
             if (boxedSetOrder == null) {
                 // create new videoSet
-                BoxedSet boxedSet = commonDao.getBoxedSet(boxedSetDTO.getName());
+                BoxedSet boxedSet = commonDao.getBoxedSet(boxedSetDTO.getIdentifier());
                 if (boxedSet != null) {
                     boxedSetOrder = new BoxedSetOrder();
                     boxedSetOrder.setVideoData(videoData);
@@ -742,7 +744,7 @@ public class MetadataStorageService {
 
             BoxedSetOrder boxedSetOrder = null;
             for (BoxedSetOrder stored : series.getBoxedSets()) {
-                if (StringUtils.equalsIgnoreCase(stored.getBoxedSet().getName(), boxedSetDTO.getName())) {
+                if (StringUtils.equalsIgnoreCase(stored.getBoxedSet().getIdentifier(), boxedSetDTO.getIdentifier())) {
                     boxedSetOrder = stored;
                     break;
                 }
@@ -750,7 +752,7 @@ public class MetadataStorageService {
 
             if (boxedSetOrder == null) {
                 // create new videoSet
-                BoxedSet boxedSet = commonDao.getBoxedSet(boxedSetDTO.getName());
+                BoxedSet boxedSet = commonDao.getBoxedSet(boxedSetDTO.getIdentifier());
                 if (boxedSet != null) {
                     boxedSetOrder = new BoxedSetOrder();
                     boxedSetOrder.setSeries(series);
@@ -787,8 +789,18 @@ public class MetadataStorageService {
 
         for (CreditDTO dto : videoData.getCreditDTOS()) {
             String identifier = MetadataTools.cleanIdentifier(dto.getName());
-            CastCrew castCrew = this.metadataDao.getCastCrew(videoData, dto.getJobType(), identifier);
-
+            
+            // find matching cast/crew
+            CastCrew castCrew = null;
+            for (CastCrew credit : videoData.getCredits()) {
+                if (credit.getCastCrewPK().getJobType() == dto.getJobType() &&
+                    credit.getCastCrewPK().getPerson().getIdentifier().equalsIgnoreCase(identifier))
+                {
+                    castCrew = credit;
+                    break;
+                }
+            }
+            
             if (castCrew == null) {
                 // retrieve person
                 Person person = metadataDao.getPerson(identifier);
@@ -875,6 +887,7 @@ public class MetadataStorageService {
             located.setUrl(entry.getKey());
             located.setHashCode(ArtworkTools.getUrlHashCode(entry.getKey()));
             located.setPriority(5);
+            located.setImageType(ImageType.fromString(FilenameUtils.getExtension(entry.getKey())));
             located.setStatus(StatusType.NEW);
             
             artworkDao.saveArtworkLocated(artwork, located);

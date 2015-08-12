@@ -20,20 +20,12 @@
  *      Web: https://github.com/YAMJ/yamj-v3
  *
  */
-package org.yamj.core.database.model.type;
+package org.yamj.core.service.attachment;
 
-public enum SourceType {
+/**
+ * The type of attachment
+ */
+public enum AttachmentType {
 
-    MAIN,
-    ALTERNATE,
-    KNOWN,
-    UNKNOWN;
-
-    public static SourceType fromString(String type) {
-        try {
-            return SourceType.valueOf(type.trim().toUpperCase());
-        } catch (IllegalArgumentException ex) {
-            return UNKNOWN;
-        }
-    }
+    MATROSKA;
 }

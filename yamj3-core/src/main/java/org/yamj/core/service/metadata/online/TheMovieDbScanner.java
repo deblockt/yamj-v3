@@ -246,7 +246,7 @@ public class TheMovieDbScanner implements IMovieScanner, ISeriesScanner, IPerson
 
         // COMPANIES
         if (CollectionUtils.isNotEmpty(movieInfo.getProductionCompanies()) && OverrideTools.checkOverwriteStudios(videoData, SCANNER_ID)) {
-            final Set<String> studioNames = new HashSet<>(movieInfo.getProductionCompanies().size());
+            final Set<String> studioNames = new HashSet<>();
             for (ProductionCompany company : movieInfo.getProductionCompanies()) {
                 if (StringUtils.isNotBlank(company.getName())) {
                     studioNames.add(StringUtils.trim(company.getName()));
@@ -257,7 +257,14 @@ public class TheMovieDbScanner implements IMovieScanner, ISeriesScanner, IPerson
 
         // CAST
         if (this.configServiceWrapper.isCastScanEnabled(JobType.ACTOR)) {
+            boolean skipUncredited = configServiceWrapper.getBooleanProperty("yamj3.castcrew.skip.uncredited", Boolean.TRUE);
+            
             for (MediaCreditCast person : movieInfo.getCast()) {
+                // skip person without credit
+                if (skipUncredited && StringUtils.indexOf(person.getCharacter(), "uncredited") > 0) {
+                    continue;
+                }
+                
                 CreditDTO credit = new CreditDTO(SCANNER_ID, String.valueOf(person.getId()), JobType.ACTOR, person.getName(), person.getCharacter());
                 videoData.addCreditDTO(credit);
             }
@@ -655,22 +662,15 @@ public class TheMovieDbScanner implements IMovieScanner, ISeriesScanner, IPerson
             return null;
         }
 
-        newBio = newBio.replaceAll("\\s+", " ");
-
+        newBio = newBio.replaceAll("\\u00A0", " ").replaceAll("\\s+", " ");
+        
         int pos = StringUtils.indexOfIgnoreCase(newBio, FROM_WIKIPEDIA);
-        if (pos >= 0) {
-            // We've found the text, so remove it
-            LOG.trace("Removing start wikipedia text from bio");
-            newBio = newBio.substring(pos + FROM_WIKIPEDIA.length() + 1);
-        }
+        if (pos >= 0) newBio = newBio.substring(pos + FROM_WIKIPEDIA.length() + 1);
 
         pos = StringUtils.indexOfIgnoreCase(newBio, WIKIPEDIA_DESCRIPTION_ABOVE);
-        if (pos >= 0) {
-            LOG.trace("Removing end wikipedia text from bio");
-            newBio = newBio.substring(0, pos);
-        }
-
-        return newBio.trim();
+        if (pos >= 0) newBio = newBio.substring(0, pos);
+        
+        return newBio;
     }
 
     @Override

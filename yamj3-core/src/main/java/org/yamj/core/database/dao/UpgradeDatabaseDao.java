@@ -22,6 +22,7 @@
  */
 package org.yamj.core.database.dao;
 
+import java.math.BigInteger;
 import java.util.*;
 import java.util.Map.Entry;
 import org.apache.commons.collections.CollectionUtils;
@@ -32,6 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.yamj.core.config.LocaleService;
 import org.yamj.core.hibernate.HibernateDao;
 import org.yamj.core.tools.Constants;
+import org.yamj.core.tools.MetadataTools;
 
 @Transactional
 @Repository("fixDatabaseDao")
@@ -100,68 +102,6 @@ public class UpgradeDatabaseDao extends HibernateDao {
         }
     }
     
-    /**
-     * Issues: enhancement
-     * Date:   21.07.2015
-     */
-    public void patchArtworkConfig() {
-        currentSession()
-            .createSQLQuery("UPDATE configuration set config_value='plugin_movie,alternate_movie,tmdb,fanarttv,yahoo' where config_key='yamj3.artwork.scanner.poster.movie.priorities'")
-            .executeUpdate();
-        currentSession()
-            .createSQLQuery("UPDATE configuration set config_value='plugin_series,alternate_series,tvdb' where config_key='yamj3.artwork.scanner.poster.tvshow.priorities'")
-            .executeUpdate();
-        currentSession()
-            .createSQLQuery("UPDATE configuration set config_value='plugin_movie,alternate_movie,tmdb' where config_key='yamj3.artwork.scanner.poster.boxset.priorities'")
-            .executeUpdate();
-        currentSession()
-            .createSQLQuery("UPDATE configuration set config_value='plugin_movie,alternate_movie,tmdb,fanarttv' where config_key='yamj3.artwork.scanner.fanart.movie.priorities'")
-            .executeUpdate();
-        currentSession()
-            .createSQLQuery("UPDATE configuration set config_value='plugin_series,alternate_series,tvdb' where config_key='yamj3.artwork.scanner.fanart.tvshow.priorities'")
-            .executeUpdate();
-        currentSession()
-            .createSQLQuery("UPDATE configuration set config_value='plugin_movie,alternate_movie,tmdb' where config_key='yamj3.artwork.scanner.fanart.boxset.priorities'")
-            .executeUpdate();
-        currentSession()
-            .createSQLQuery("UPDATE configuration set config_value='plugin_series,alternate_series,tvdb' where config_key='yamj3.artwork.scanner.banner.tvshow.priorities'")
-            .executeUpdate();
-        currentSession()
-            .createSQLQuery("UPDATE configuration set config_value='plugin_movie,alternate_movie,tmdb' where config_key='yamj3.artwork.scanner.banner.boxset.priorities'")
-            .executeUpdate();
-        currentSession()
-            .createSQLQuery("UPDATE configuration set config_value='plugin_series,alternate_series,tvdb' where config_key='yamj3.artwork.scanner.videoimage.priorities'")
-            .executeUpdate();
-        currentSession()
-            .createSQLQuery("UPDATE configuration set config_value='plugin_person,alternate_person,tmdb' where config_key='yamj3.artwork.scanner.photo.priorities'")
-            .executeUpdate();
-    }
-    
-    /**
-     * Issues: #234
-     * Date:   24.07.2015
-     */
-    public void patchLocaleConfig() {
-        currentSession()
-            .createSQLQuery("DELETE FROM configuration where config_key='imdb.id.search.country'")
-            .executeUpdate();
-        currentSession()
-            .createSQLQuery("DELETE FROM configuration where config_key='imdb.aka.preferred.country'")
-            .executeUpdate();
-        currentSession()
-            .createSQLQuery("UPDATE configuration set config_value='' where config_key='themoviedb.language'")
-            .executeUpdate();
-        currentSession()
-            .createSQLQuery("UPDATE configuration set config_value='' where config_key='themoviedb.country'")
-            .executeUpdate();
-        currentSession()
-            .createSQLQuery("UPDATE configuration set config_value='' where config_key='thetvdb.language'")
-            .executeUpdate();
-        currentSession()
-            .createSQLQuery("UPDATE configuration set config_value='DE,FR,GB,US' where config_key='yamj3.certification.countries'")
-            .executeUpdate();
-    }
-
     class CertEntry {
         public String country;
         public String cert;
@@ -546,6 +486,183 @@ public class UpgradeDatabaseDao extends HibernateDao {
         // drop old columns
         currentSession()
         .createSQLQuery("ALTER TABLE subtitle DROP language")
+        .executeUpdate();
+    }
+
+    /**
+     * Issues: #234, #237, enhancements
+     * Date:   07.08.2015
+     */
+    public void patchConfiguration() {
+        // enhancements
+        currentSession()
+            .createSQLQuery("DELETE FROM configuration where config_key='imdb.skip.faceless'")
+            .executeUpdate();
+        
+        // #234
+        currentSession()
+            .createSQLQuery("DELETE FROM configuration where config_key='imdb.id.search.country'")
+            .executeUpdate();
+        currentSession()
+            .createSQLQuery("DELETE FROM configuration where config_key='imdb.aka.preferred.country'")
+            .executeUpdate();
+        currentSession()
+            .createSQLQuery("UPDATE configuration set config_value='' where config_key='themoviedb.language'")
+            .executeUpdate();
+        currentSession()
+            .createSQLQuery("UPDATE configuration set config_value='' where config_key='themoviedb.country'")
+            .executeUpdate();
+        currentSession()
+            .createSQLQuery("UPDATE configuration set config_value='' where config_key='thetvdb.language'")
+            .executeUpdate();
+        currentSession()
+            .createSQLQuery("UPDATE configuration set config_value='DE,FR,GB,US' where config_key='yamj3.certification.countries'")
+            .executeUpdate();
+
+        // #237
+        currentSession()
+            .createSQLQuery("UPDATE configuration set config_value='movie_scanner,tmdb,fanarttv,yahoo' where config_key='yamj3.artwork.scanner.poster.movie.priorities'")
+            .executeUpdate();
+        currentSession()
+            .createSQLQuery("UPDATE configuration set config_value='series_scanner,tvdb' where config_key='yamj3.artwork.scanner.poster.tvshow.priorities'")
+            .executeUpdate();
+        currentSession()
+            .createSQLQuery("UPDATE configuration set config_value='movie_scanner,tmdb' where config_key='yamj3.artwork.scanner.poster.boxset.priorities'")
+            .executeUpdate();
+        currentSession()
+            .createSQLQuery("UPDATE configuration set config_value='movie_scanner,tmdb,fanarttv' where config_key='yamj3.artwork.scanner.fanart.movie.priorities'")
+            .executeUpdate();
+        currentSession()
+            .createSQLQuery("UPDATE configuration set config_value='series_scanner,tvdb' where config_key='yamj3.artwork.scanner.fanart.tvshow.priorities'")
+            .executeUpdate();
+        currentSession()
+            .createSQLQuery("UPDATE configuration set config_value='movie_scanner,tmdb' where config_key='yamj3.artwork.scanner.fanart.boxset.priorities'")
+            .executeUpdate();
+        currentSession()
+            .createSQLQuery("UPDATE configuration set config_value='series_scanner,tvdb' where config_key='yamj3.artwork.scanner.banner.tvshow.priorities'")
+            .executeUpdate();
+        currentSession()
+            .createSQLQuery("UPDATE configuration set config_value='movie_scanner,tmdb' where config_key='yamj3.artwork.scanner.banner.boxset.priorities'")
+            .executeUpdate();
+        currentSession()
+            .createSQLQuery("UPDATE configuration set config_value='series_scanner,tvdb' where config_key='yamj3.artwork.scanner.videoimage.priorities'")
+            .executeUpdate();
+        currentSession()
+            .createSQLQuery("UPDATE configuration set config_value='person_scanner,tmdb' where config_key='yamj3.artwork.scanner.photo.priorities'")
+            .executeUpdate();
+    }
+
+    /**
+     * Issues: enhancement
+     * Date:   10.08.2015
+     */
+    public void patchArtworkLocated() {
+        currentSession()
+        .createSQLQuery("UPDATE artwork_located set image_type='JPG' where image_type=''")
+        .executeUpdate();
+
+        if (!existsColumn("artwork_located", "language")) return;
+
+        currentSession()
+        .createSQLQuery("UPDATE artwork_located set language_code=language where language is not null")
+        .executeUpdate();
+        
+        currentSession()
+        .createSQLQuery("ALTER TABLE artwork_located DROP language")
+        .executeUpdate();
+    }
+
+    /**
+     * Issues: enhancement
+     * Date:   10.08.2015
+     */
+    public void patchBoxedSetIdentifier() {
+        // retrieve boxed sets
+        Map<Long, String> boxedSets = new HashMap<>();
+        List<Object[]> objects = currentSession().createSQLQuery("select id,name from boxed_set where identifier=''").list();
+        for (Object[] object : objects) {
+            Long id = Long.valueOf(object[0].toString());
+            String name = object[1].toString();
+            boxedSets.put(id, name);
+        }
+
+        if (boxedSets.isEmpty()) {
+            // nothing to do anymore
+            return;
+        }
+        
+        // drop unique index
+        if (existsUniqueIndex("boxed_set", "UIX_BOXEDSET_NATURALID")) {
+            currentSession()
+            .createSQLQuery("ALTER TABLE boxed_set DROP index UIX_BOXEDSET_NATURALID")
+            .executeUpdate();
+        }
+
+        // update language codes
+        for (Entry<Long,String> update : boxedSets.entrySet()) {
+            String identifier = MetadataTools.cleanIdentifier(update.getValue());
+            
+            currentSession()
+            .createSQLQuery("UPDATE boxed_set set identifier=:identifier where id=:id")
+            .setLong("id", update.getKey())
+            .setString("identifier", identifier)
+            .executeUpdate();
+        }
+
+        // create new index
+        currentSession()
+        .createSQLQuery("CREATE UNIQUE INDEX UIX_BOXEDSET_NATURALID on boxed_set(identifier)")
+        .executeUpdate();
+    }
+    
+    /**
+     * Issues: database schema
+     * Date:   10.08.2015
+     */
+    public void patchStudio() {
+        if (existsUniqueIndex("studio", "UK_STUDIO_NATURALID")) {
+            currentSession()
+            .createSQLQuery("ALTER TABLE studio DROP index UK_STUDIO_NATURALID")
+            .executeUpdate();
+        }
+    }
+
+    /**
+     * Issues: #193
+     * Date:   10.08.2015
+     */
+    public void patchMediaFileWatched() {
+        if (!existsColumn("mediafile", "watched_file")) return;
+        
+        // retrieve media file with watched file
+        List<BigInteger> ids = currentSession()
+            .createSQLQuery("select id from mediafile where watched_file=:watched")
+            .setBoolean("watched", Boolean.TRUE)
+            .list();
+
+        for (BigInteger id : ids) {
+            Date watchedFileDate = (Date)currentSession()
+                .createSQLQuery("SELECT max(sf.file_date) FROM stage_file sf WHERE sf.mediafile_id =:id and sf.status != 'DELETED'")
+                .setLong("id", id.longValue())
+                .uniqueResult();
+            
+            if (watchedFileDate != null) {
+                currentSession()
+                .createSQLQuery("UPDATE mediafile set watched_file_date=:watchedFileDate where id=:id")
+                .setLong("id", id.longValue())
+                .setTimestamp("watchedFileDate", watchedFileDate)
+                .executeUpdate();
+            }
+        }
+        
+        // update watched api date
+        currentSession()
+        .createSQLQuery("UPDATE mediafile set watched_api_date=update_timestamp where watched_api=:watched")
+        .setBoolean("watched", Boolean.TRUE)
+        .executeUpdate();
+
+        currentSession()
+        .createSQLQuery("ALTER TABLE mediafile DROP watched_file")
         .executeUpdate();
     }
 }
