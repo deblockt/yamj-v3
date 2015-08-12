@@ -25,6 +25,7 @@ package org.yamj.core.service.mediaimport;
 import static java.util.regex.Pattern.CASE_INSENSITIVE;
 import static org.springframework.util.StringUtils.tokenizeToStringArray;
 
+import java.io.File;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -54,9 +55,9 @@ public class FilenameScanner {
     private static final Pattern SET_PATTERN = PatternUtils.ipatt("\\[SET(?:\\s|-)([^\\[\\]]*)\\]");
     // Number at the end of string preceded with '-'
     private static final Pattern SET_INDEX_PATTERN = PatternUtils.patt("-\\s*(\\d+)\\s*$");
-    private static final Pattern TV_PATTERN = PatternUtils.ipatt("(?<![0-9])((s[0-9]{1,4})|[0-9]{1,2})(?:(\\s|\\.|x))??((?:(e|x)\\s??[0-9]+)+)|\\s+((?:e[0-9]+)+)");
+    private static final Pattern TV_PATTERN = PatternUtils.ipatt("(?<![0-9])((s[0-9]{1,4})|[0-9]{1,2})(?:(\\s|\\.|x))??((?:(e|x)\\s??[0-9]+)+)|\\s+((?:e(?:pi\\s+)?[0-9]+)+)");
     private static final Pattern SEASON_PATTERN = PatternUtils.ipatt("s{0,1}([0-9]+)(\\s|\\.)??[ex-]");
-    private static final Pattern EPISODE_PATTERN = PatternUtils.ipatt("[ex]\\s??([0-9]+)");
+    private static final Pattern EPISODE_PATTERN = PatternUtils.ipatt("[ex](?:pi)?\\s??([0-9]+)");
 	private static final Pattern SITE_INFO_PATTERN = PatternUtils.ipatt("\\[[^\\]]*\\]\\s");
 	
     // Last 4 digits or last 4 digits in parenthesis
@@ -67,6 +68,8 @@ public class FilenameScanner {
     private static final Pattern TITLE_CLEANUP_CUT_PATTERN = PatternUtils.patt("-$|\\($");
     // All symbols between '-' and '/' but not after '/TVSHOW/' or '/PART/'
     private static final Pattern SECOND_TITLE_PATTERN = PatternUtils.patt("(?<!/TVSHOW/|/PART/)-([^/]+)");
+    
+    private static int AUTOMATIC_EPISODE_ID = 0;
     
     /**
      * Mapping exact tokens to language.
@@ -121,7 +124,7 @@ public class FilenameScanner {
                     tokenBuilder.append(quotedToken);
                 }
             }
-            put(key, PatternUtils.iwpatt(tokenBuilder.toString()));
+            put(key, PatternUtils.iwpatt(tokenBuilder.toString() + "(?:-[^"+Pattern.quote(PatternUtils.WORD_DELIMITERS_STRING)+"]*)?"));
         }
     };
     
@@ -152,9 +155,9 @@ public class FilenameScanner {
 
         {
             for (Pattern p : PART_PATTERNS) {
-                add(Pattern.compile("^" + p, CASE_INSENSITIVE));
+                add(Pattern.compile("^(?:" + p + ")", CASE_INSENSITIVE));
             }
-            add(Pattern.compile("^" + TV_PATTERN, CASE_INSENSITIVE));
+            add(Pattern.compile("^(?:" + TV_PATTERN + ")", CASE_INSENSITIVE));
         }
     };
     private static final Map<Integer, Pattern> FPS_MAP = new HashMap<Integer, Pattern>() {
@@ -423,9 +426,23 @@ public class FilenameScanner {
             while (ematcher.find()) {
                 dto.getEpisodes().add(Integer.parseInt(ematcher.group(1)));
             }
+        } else {        
+	        // check if parent folder is season folder /seriename/season 1 /episode name
+	        String path = dto.getCompletePath();
+	        Pattern p = PatternUtils.ipatt("Saison\\s+(\\d+)");
+	        Matcher m = p.matcher(path);
+	        if (m.find()) {
+	        	dto.setSeason(Integer.parseInt(m.group(1)));
+	        	dto.getEpisodes().add(AUTOMATIC_EPISODE_ID++);
+	        	// add serie name before rest
+	        	String grandParent = path.substring(path.lastIndexOf(File.separatorChar,  m.start() - 2) + 1, m.start() - 1);
+	        	if (!dto.getRest().contains(grandParent)) {
+	        		dto.setRest(grandParent + " ./TVSHOW/. - " + dto.getRest());  
+	        	}
+	        }
         }
     }
-
+    
     /**
      * Process the "Part" portion
      *

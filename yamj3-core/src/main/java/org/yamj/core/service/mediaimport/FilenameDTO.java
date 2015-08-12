@@ -60,16 +60,19 @@ public class FilenameDTO {
     private final Map<String, String> idMap = new HashMap<>(2);
     private final Map<String, Integer> setMap = new HashMap<>(0);
     private final List<String> languages = new ArrayList<>(0);
+	private String completePath;
 
     public FilenameDTO(StageFile stageFile) {
         this.name = stageFile.getFileName();
         this.parentName = FilenameUtils.getName(stageFile.getStageDirectory().getDirectoryPath());
+        this.completePath = FilenameUtils.separatorsToSystem(stageFile.getStageDirectory().getDirectoryPath());
         this.directory = false;
     }
 
     public FilenameDTO(StageDirectory stageDirectory) {
         this.name = FilenameUtils.getName(stageDirectory.getDirectoryPath());
         this.parentName = FilenameUtils.getName(stageDirectory.getParentDirectory().getDirectoryPath());
+        this.completePath = FilenameUtils.separatorsToSystem(stageDirectory.getDirectoryPath());
         this.directory = true;
     }
 
@@ -264,8 +267,16 @@ public class FilenameDTO {
         sb.append(PADDED_FORMAT.format(season));
         return sb.toString();
     }
+   
+    public String getCompletePath() {
+		return completePath;
+	}
 
-    @Override
+	public void setCompletePath(String completePath) {
+		this.completePath = completePath;
+	}
+
+	@Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append("[Title=").append(title);
