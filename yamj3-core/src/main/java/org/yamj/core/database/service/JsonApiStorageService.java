@@ -22,8 +22,8 @@
  */
 package org.yamj.core.database.service;
 
-import java.io.Serializable;
 import java.util.List;
+import java.util.ListIterator;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,7 +43,7 @@ import org.yamj.core.config.LocaleService;
 import org.yamj.core.database.dao.*;
 import org.yamj.core.database.model.*;
 import org.yamj.core.database.model.player.PlayerInfo;
-import org.yamj.core.database.model.type.SourceType;
+import org.yamj.core.database.model.player.PlayerPath;
 import org.yamj.core.service.metadata.online.OnlineScannerService;
 
 @Service("jsonApiStorageService")
@@ -126,8 +126,8 @@ public class JsonApiStorageService {
     //</editor-fold>
 
     //<editor-fold defaultstate="collapsed" desc="Genre Methods">
-    public Genre getGenre(Serializable id) {
-        return commonDao.getById(Genre.class, id);
+    public Genre getGenre(Long id) {
+        return commonDao.getGenre(id);
     }
 
     public Genre getGenre(String name) {
@@ -144,8 +144,8 @@ public class JsonApiStorageService {
     //</editor-fold>
 
     //<editor-fold defaultstate="collapsed" desc="Studio Methods">
-    public Studio getStudio(Serializable id) {
-        return commonDao.getById(Studio.class, id);
+    public Studio getStudio(Long id) {
+        return commonDao.getStudio(id);
     }
 
     public Studio getStudio(String name) {
@@ -158,8 +158,8 @@ public class JsonApiStorageService {
     //</editor-fold>
 
     //<editor-fold defaultstate="collapsed" desc="Country Methods">
-    public ApiCountryDTO getCountry(Serializable id, String language) {
-        Country country = commonDao.getById(Country.class, id);
+    public ApiCountryDTO getCountry(Long id, String language) {
+        Country country = commonDao.getCountry(id);
         if (country == null) return null;
 
         ApiCountryDTO dto = new ApiCountryDTO();
@@ -266,11 +266,11 @@ public class JsonApiStorageService {
 
     //<editor-fold defaultstate="collapsed" desc="Player methods">
     public PlayerInfo getPlayerInfo(String playerName) {
-        return playerDao.getPlayerInfo(playerName);
+        return playerDao.getByNaturalIdCaseInsensitive(PlayerInfo.class, "name", playerName);
     }
 
     public PlayerInfo getPlayerInfo(Long playerId) {
-        return playerDao.getPlayerInfo(playerId);
+        return playerDao.getById(PlayerInfo.class, playerId);
     }
 
     public List<PlayerInfo> getPlayerList() {
@@ -283,17 +283,48 @@ public class JsonApiStorageService {
 
     @Transactional
     public void deletePlayer(Long playerId) {
-        playerDao.deletePlayer(playerId);
-    }
-
-    @Transactional
-    public void deletePlayerPath(Long playerId, Long pathId) {
-        playerDao.deletePlayerPath(playerId, pathId);
+        PlayerInfo playerInfo = this.getPlayerInfo(playerId);
+        if (playerInfo == null) return;
+        playerDao.deleteEntity(playerInfo);
     }
 
     @Transactional
     public void storePlayer(PlayerInfo player) {
-        playerDao.storePlayer(player);
+        PlayerInfo playerInfo = this.getPlayerInfo(player.getName());
+        if (playerInfo == null) {
+            playerDao.saveEntity(player);
+        } else {
+            playerInfo.setDeviceType(player.getDeviceType());
+            playerInfo.setIpAddress(player.getIpAddress());
+            playerDao.updateEntity(playerInfo);
+        }
+    }
+
+    @Transactional
+    public boolean storePlayerPath(Long playerId, PlayerPath playerPath) {
+        PlayerInfo playerInfo = this.getPlayerInfo(playerId);
+        if (playerInfo == null) return false;
+        
+        playerInfo.addPath(playerPath);
+        playerDao.updateEntity(playerInfo);
+        return true;
+    }
+    
+    @Transactional
+    public boolean deletePlayerPath(Long playerId, Long pathId) {
+        PlayerInfo playerInfo = this.getPlayerInfo(playerId);
+        if (playerInfo == null) return false;
+
+        ListIterator<PlayerPath> iter = playerInfo.getPaths().listIterator();
+        while (iter.hasNext()) {
+            PlayerPath path = iter.next();
+            if (path.getId() == pathId) {
+                iter.remove();
+                playerDao.updateEntity(playerInfo);
+                return true;
+            }
+        }
+        return false;
     }
     //</editor-fold>
 
@@ -599,7 +630,7 @@ public class JsonApiStorageService {
                     }
                     break;
                 case BOXSET:
-                    BoxedSet boxedSet = commonDao.getById(BoxedSet.class, id);
+                    BoxedSet boxedSet = commonDao.getBoxedSet(id);
                     if (boxedSet != null) {
                         this.commonDao.markAsUpdated(boxedSet.getArtworks());
                         rescan = true;
@@ -685,13 +716,19 @@ public class JsonApiStorageService {
 
         return new ApiStatus(410, "No valid " + type.name().toLowerCase() + " ID provided");
     }
+    
+    @Transactional
+    public ApiStatus rescanAll() {
+        this.apiDao.rescanAll();
+        return new ApiStatus(200, "Rescan forced for all meta data objects");
+    }
+    
     //</editor-fold>
     
     @Transactional
     public ApiStatus updateOnlineScan(MetaDataType type, Long id, String sourceDb, boolean disable) {
-
-        // first check if source is valid
-        if (SourceType.UNKNOWN.equals(onlineScannerService.determineSourceType(type, sourceDb))) {
+        // first check if source is known
+        if (!onlineScannerService.isKnownScanner(type, sourceDb)) {
             StringBuilder sb = new StringBuilder();
             sb.append("The sourceDb ");
             sb.append(sourceDb);
@@ -705,34 +742,63 @@ public class JsonApiStorageService {
             if (person == null) {
                 return new ApiStatus(404, "Person for ID " + id + " not found");
             }
+            
+            final boolean changed;
             if (disable) {
-                person.disableApiScan(sourceDb);
+                changed = person.disableApiScan(sourceDb);
             } else {
-                person.enableApiScan(sourceDb);
+                changed = person.enableApiScan(sourceDb);
             }
-            commonDao.updateEntity(person);
+
+            // if skip value has changed then reset status
+            if (changed) {
+                person.setStatus(StatusType.UPDATED);
+                commonDao.updateEntity(person);
+            }
         } else if (MetaDataType.SERIES == type) {
             Series series = commonDao.getById(Series.class, id);
             if (series == null) {
                 return new ApiStatus(404, "Series for ID " + id + " not found");
             }
+        
+            final boolean changed;
             if (disable) {
-                series.disableApiScan(sourceDb);
+                changed = series.disableApiScan(sourceDb);
             } else {
-                series.enableApiScan(sourceDb);
+                changed = series.enableApiScan(sourceDb);
             }
-            commonDao.updateEntity(series);
+        
+            // if something changed then reset status
+            if (changed) {
+                series.setStatus(StatusType.UPDATED);
+                commonDao.updateEntity(series);
+                for (Season season: series.getSeasons()) {
+                    season.setStatus(StatusType.UPDATED);
+                    commonDao.updateEntity(season);
+                    for (VideoData videoDaa : season.getVideoDatas()) {
+                        videoDaa.setStatus(StatusType.UPDATED);
+                        commonDao.updateEntity(videoDaa);
+                    }
+                }
+            }
         } else {
             VideoData videoData = commonDao.getById(VideoData.class, id);
             if (videoData == null) {
                 return new ApiStatus(404, "VideoData for ID " + id + " not found");
             }
+
+            final boolean changed;
             if (disable) {
-                videoData.disableApiScan(sourceDb);
+                changed = videoData.disableApiScan(sourceDb);
             } else {
-                videoData.enableApiScan(sourceDb);
+                changed = videoData.enableApiScan(sourceDb);
             }
-            commonDao.updateEntity(videoData);
+            
+            // if something changed then reset status
+            if (changed) {
+                videoData.setStatus(StatusType.UPDATED);
+                commonDao.updateEntity(videoData);
+            }
         }
         
         StringBuilder sb = new StringBuilder();
@@ -747,11 +813,8 @@ public class JsonApiStorageService {
 
     @Transactional
     public ApiStatus updateExternalId(MetaDataType type, Long id, String sourceDb, String sourceDbId) {
-        // determine source type
-        SourceType sourceType = onlineScannerService.determineSourceType(type, sourceDb);
-
-        // check if source is valid
-        if (SourceType.UNKNOWN.equals(sourceType)) {
+        // first check if source is known
+        if (!onlineScannerService.isKnownScanner(type, sourceDb)) {
             StringBuilder sb = new StringBuilder();
             sb.append("The sourceDb ");
             sb.append(sourceDb);

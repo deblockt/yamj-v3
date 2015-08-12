@@ -43,6 +43,7 @@ public final class InfoDTO {
     private Set<String> fanartURLs = new HashSet<>(0);
     private Set<String> trailerURLs= new HashSet<>(0);
     private boolean watched = false;
+    private Date watchedDate; 
     private String title;
     private String titleOriginal;
     private String titleSort;
@@ -117,8 +118,17 @@ public final class InfoDTO {
         return watched;
     }
 
-    public void setWatched(boolean watched) {
+    public Date getWatchedDate() {
+        return this.watchedDate;
+    }
+    
+    public void setWatched(Boolean watched, Date watchedDate) {
         this.watched = watched;
+        if (this.watchedDate == null) {
+            this.watchedDate = watchedDate;
+        } else if (watchedDate != null && watchedDate.after(this.watchedDate)) {
+            this.watchedDate = watchedDate;
+        }
         this.changed = true;
     }
     
@@ -345,8 +355,7 @@ public final class InfoDTO {
 
     public void addActor(String actor, String role, String photoURL) {
         if (StringUtils.isNotBlank(actor)) {
-            String fixedRole = MetadataTools.fixActorRole(role);
-            CreditDTO credit = new CreditDTO(NfoScannerService.SCANNER_ID, JobType.ACTOR, actor, fixedRole);
+            CreditDTO credit = new CreditDTO(NfoScannerService.SCANNER_ID, JobType.ACTOR, actor, role);
             credit.addPhotoURL(photoURL);
             this.credits.add(credit);
             this.changed = true;

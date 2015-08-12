@@ -122,14 +122,14 @@ public class CommonStorageService {
                         check.setStatus(StatusType.DONE);
                         this.stagingDao.updateEntity(check);
 
-                        // reset watched file
-                        boolean watchedFile = this.stagingService.isWatchedVideoFile(check);
-                        mediaFile.setWatchedFile(watchedFile);
+                        // reset watched file date
+                        Date watchedFileDate = this.stagingService.maxWatchedFileDate(check);
+                        mediaFile.setWatchedFileDate(watchedFileDate);
                         mediaFile.setStatus(StatusType.UPDATED);
                         this.stagingDao.updateEntity(mediaFile);
 
                         for (VideoData videoData : mediaFile.getVideoDatas()) {
-                            watchedFile = MetadataTools.allMediaFilesWatched(videoData, false);
+                            boolean watchedFile = MetadataTools.allMediaFilesWatched(videoData, false);
                             if (videoData.isWatchedFile() != watchedFile) {
                                 videoData.setWatchedFile(watchedFile);
                                 this.stagingDao.updateEntity(videoData);
@@ -146,7 +146,13 @@ public class CommonStorageService {
                     }
                 }
             }
+        }
 
+        // delete attached artwork
+        for (ArtworkLocated located : stageFile.getArtworkLocated()) {
+            Artwork artwork = located.getArtwork();
+            artwork.getArtworkLocated().remove(located);
+            this.delete(artwork, located, filesToDelete);
         }
 
         // delete the stage file
@@ -454,30 +460,28 @@ public class CommonStorageService {
     }
 
     @Transactional
-    public boolean toogleWatchedStatus(StageFile stageFile, boolean watched, boolean apiCall) {
-        if (stageFile == null) {
+    public boolean toogleWatchedStatus(StageFile videoFile, boolean watched, boolean apiCall) {
+        if (videoFile == null) {
             return false;
         }
-        if (!FileType.VIDEO.equals(stageFile.getFileType())) {
+        if (!FileType.VIDEO.equals(videoFile.getFileType())) {
             return false;
         }
-        if (StatusType.DUPLICATE.equals(stageFile.getStatus())) {
+        if (StatusType.DUPLICATE.equals(videoFile.getStatus())) {
             return false;
         }
-        return this.toggleWatchedStatus(stageFile.getMediaFile(), watched, apiCall);
-    }
 
-    @Transactional
-    public boolean toggleWatchedStatus(MediaFile mediaFile, boolean watched, boolean apiCall) {
+        MediaFile mediaFile = videoFile.getMediaFile();
         if (mediaFile == null) {
             return false;
         }
-
+        
         // update media file
         if (apiCall) {
             mediaFile.setWatchedApi(watched);
+            mediaFile.setWatchedApiDate(new Date(System.currentTimeMillis()));
         } else {
-            mediaFile.setWatchedFile(watched);
+            mediaFile.setWatchedFileDate(this.stagingService.maxWatchedFileDate(videoFile));
         }
         
         LOG.debug("Mark media file as {} {}: {}", (apiCall ? "api" : "file"), (watched ? "watched" : "unwatched"), mediaFile);

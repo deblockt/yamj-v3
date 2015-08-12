@@ -39,85 +39,76 @@ public final class OverrideTools {
     private static final Logger LOG = LoggerFactory.getLogger(OverrideTools.class);
     // check skip if not in priority list
     private static final boolean SKIP_NOT_IN_LIST = PropertyTools.getBooleanProperty("priority.checks.skipNotInList", Boolean.FALSE);
-    // handling for set default plugins
-    private static final String TYPE_PLUGIN_MOVIE = "plugin_movie";
-    private static final String TYPE_PLUGIN_SERIES = "plugin_series";
-    private static final String TYPE_PLUGIN_PERSON = "plugin_person";
-    private static final String TYPE_ALTERNATE_MOVIE = "alternate_movie";
-    private static final String TYPE_ALTERNATE_SERIES = "alternate_series";
-    private static final String TYPE_ALTERNATE_PERSON = "alternate_person";
-    private static final String PLUGIN_MOVIE = OnlineScannerService.MOVIE_SCANNER;
-    private static final String PLUGIN_MOVIE_ALT = OnlineScannerService.MOVIE_SCANNER_ALT;
-    private static final String PLUGIN_SERIES = OnlineScannerService.SERIES_SCANNER;
-    private static final String PLUGIN_SERIES_ALT = OnlineScannerService.SERIES_SCANNER_ALT;
-    private static final String PLUGIN_PERSON = OnlineScannerService.PERSON_SCANNER;
-    private static final String PLUGIN_PERSON_ALT = OnlineScannerService.PERSON_SCANNER_ALT;
+    // handling for set default scanners
+    private static final String TYPE_MOVIE_SCANNER = "movie_scanner";
+    private static final String TYPE_SERIES_SCANNER = "series_scanner";
+    private static final String TYPE_PERSON_SCANNER = "person_scanner";
     private static final Map<OverrideFlag, List<String>> VIDEODATA_PRIORITIES = new EnumMap<>(OverrideFlag.class);
     private static final Map<OverrideFlag, List<String>> SEASON_PRIORITIES = new EnumMap<>(OverrideFlag.class);
     private static final Map<OverrideFlag, List<String>> SERIES_PRIORITIES = new EnumMap<>(OverrideFlag.class);
     private static final Map<OverrideFlag, List<String>> PERSON_PRIORITIES = new EnumMap<>(OverrideFlag.class);
-    private static final String DEFAULT_PLUGIN_MOVIE_SERIES = "api,nfo,plugin_movie,plugin_series,alternate_movie,alternate_series";
-    private static final String DEFAULT_PLUGIN_SERIES = "api,nfo,plugin_series,alternate_series";
-    private static final String DEFAULT_PLUGIN_PERSON = "api,nfo,plugin_person,alternate_person";
+    private static final String DEFAULT_PLUGIN_SERIES_MOVIE = "api,nfo,"+TYPE_SERIES_SCANNER+","+TYPE_MOVIE_SCANNER;
+    private static final String DEFAULT_PLUGIN_SERIES = "api,nfo,"+TYPE_SERIES_SCANNER;
+    private static final String DEFAULT_PLUGIN_PERSON = "api,nfo,"+TYPE_PERSON_SCANNER;
     private static final String APPEND_FILENAME = ",filename";
     
     static {
         String sources;
 
         // countries
-        sources = PropertyTools.getProperty("priority.videodata.countries", DEFAULT_PLUGIN_MOVIE_SERIES);
+        sources = PropertyTools.getProperty("priority.videodata.countries", DEFAULT_PLUGIN_SERIES_MOVIE);
         putVideodataPriorities(OverrideFlag.COUNTRIES, sources);
         sources = PropertyTools.getProperty("priority.series.countries", DEFAULT_PLUGIN_SERIES);
         putSeriesPriorities(OverrideFlag.COUNTRIES, sources);
         // genres
-        sources = PropertyTools.getProperty("priority.videodata.genres", DEFAULT_PLUGIN_MOVIE_SERIES);
+        sources = PropertyTools.getProperty("priority.videodata.genres", DEFAULT_PLUGIN_SERIES_MOVIE);
         putVideodataPriorities(OverrideFlag.GENRES, sources);
         sources = PropertyTools.getProperty("priority.series.genres", DEFAULT_PLUGIN_SERIES);
         putSeriesPriorities(OverrideFlag.GENRES, sources);
         // studios
-        sources = PropertyTools.getProperty("priority.videodata.studios", DEFAULT_PLUGIN_MOVIE_SERIES);
+        sources = PropertyTools.getProperty("priority.videodata.studios", DEFAULT_PLUGIN_SERIES_MOVIE);
         putVideodataPriorities(OverrideFlag.STUDIOS, sources);
         sources = PropertyTools.getProperty("priority.series.studios", DEFAULT_PLUGIN_SERIES);
         putSeriesPriorities(OverrideFlag.STUDIOS, sources);
         // original title
-        sources = PropertyTools.getProperty("priority.videodata.originaltitle", DEFAULT_PLUGIN_MOVIE_SERIES);
+        sources = PropertyTools.getProperty("priority.videodata.originaltitle", DEFAULT_PLUGIN_SERIES_MOVIE);
         putVideodataPriorities(OverrideFlag.ORIGINALTITLE, sources);
         sources = PropertyTools.getProperty("priority.series.originaltitle", DEFAULT_PLUGIN_SERIES);
         putSeriesPriorities(OverrideFlag.ORIGINALTITLE, sources);
         sources = PropertyTools.getProperty("priority.season.originaltitle", DEFAULT_PLUGIN_SERIES);
         putSeasonPriorities(OverrideFlag.ORIGINALTITLE, sources);
         // outline
-        sources = PropertyTools.getProperty("priority.videodata.outline", DEFAULT_PLUGIN_MOVIE_SERIES);
+        sources = PropertyTools.getProperty("priority.videodata.outline", DEFAULT_PLUGIN_SERIES_MOVIE);
         putVideodataPriorities(OverrideFlag.OUTLINE, sources);
         sources = PropertyTools.getProperty("priority.series.outline", DEFAULT_PLUGIN_SERIES);
         putSeriesPriorities(OverrideFlag.OUTLINE, sources);
         sources = PropertyTools.getProperty("priority.season.outline", DEFAULT_PLUGIN_SERIES);
         putSeasonPriorities(OverrideFlag.OUTLINE, sources);
         // plot
-        sources = PropertyTools.getProperty("priority.videodata.plot", DEFAULT_PLUGIN_MOVIE_SERIES);
+        sources = PropertyTools.getProperty("priority.videodata.plot", DEFAULT_PLUGIN_SERIES_MOVIE);
         putVideodataPriorities(OverrideFlag.PLOT, sources);
         sources = PropertyTools.getProperty("priority.series.plot", DEFAULT_PLUGIN_SERIES);
         putSeriesPriorities(OverrideFlag.PLOT, sources);
         sources = PropertyTools.getProperty("priority.season.plot", DEFAULT_PLUGIN_SERIES);
         putSeasonPriorities(OverrideFlag.PLOT, sources);
         // quote
-        sources = PropertyTools.getProperty("priority.videodata.quote", DEFAULT_PLUGIN_MOVIE_SERIES);
+        sources = PropertyTools.getProperty("priority.videodata.quote", DEFAULT_PLUGIN_SERIES_MOVIE);
         putVideodataPriorities(OverrideFlag.QUOTE, sources);
         // releasedate
-        sources = PropertyTools.getProperty("priority.videodata.releasedate", DEFAULT_PLUGIN_MOVIE_SERIES);
+        sources = PropertyTools.getProperty("priority.videodata.releasedate", DEFAULT_PLUGIN_SERIES_MOVIE);
         putVideodataPriorities(OverrideFlag.RELEASEDATE, sources);
         // tagline
-        sources = PropertyTools.getProperty("priority.videodata.tagline", DEFAULT_PLUGIN_MOVIE_SERIES);
+        sources = PropertyTools.getProperty("priority.videodata.tagline", DEFAULT_PLUGIN_SERIES_MOVIE);
         putVideodataPriorities(OverrideFlag.TAGLINE, sources);
         // title
-        sources = PropertyTools.getProperty("priority.videodata.title", DEFAULT_PLUGIN_MOVIE_SERIES + APPEND_FILENAME);
+        sources = PropertyTools.getProperty("priority.videodata.title", DEFAULT_PLUGIN_SERIES_MOVIE + APPEND_FILENAME);
         putVideodataPriorities(OverrideFlag.TITLE, sources);
         sources = PropertyTools.getProperty("priority.series.title", DEFAULT_PLUGIN_SERIES + APPEND_FILENAME);
         putSeriesPriorities(OverrideFlag.TITLE, sources);
         sources = PropertyTools.getProperty("priority.season.title", DEFAULT_PLUGIN_SERIES + APPEND_FILENAME);
         putSeasonPriorities(OverrideFlag.TITLE, sources);
         // year
-        sources = PropertyTools.getProperty("priority.videodata.year", DEFAULT_PLUGIN_MOVIE_SERIES + APPEND_FILENAME);
+        sources = PropertyTools.getProperty("priority.videodata.year", DEFAULT_PLUGIN_SERIES_MOVIE + APPEND_FILENAME);
         putVideodataPriorities(OverrideFlag.YEAR, sources);
         sources = PropertyTools.getProperty("priority.series.year", DEFAULT_PLUGIN_SERIES + APPEND_FILENAME);
         putSeriesPriorities(OverrideFlag.YEAR, sources);
@@ -157,7 +148,7 @@ public final class OverrideTools {
      */
     private static void putVideodataPriorities(OverrideFlag overrideFlag, String sources) {
         List<String> priorities = resolvePriorities(sources);
-        LOG.debug(overrideFlag.name() + " (VideoData) priorities " + priorities.toString());
+        LOG.trace(overrideFlag.name() + " (VideoData) priorities " + priorities.toString());
         VIDEODATA_PRIORITIES.put(overrideFlag, priorities);
     }
 
@@ -169,7 +160,7 @@ public final class OverrideTools {
      */
     private static void putSeasonPriorities(OverrideFlag overrideFlag, String sources) {
         List<String> priorities = resolvePriorities(sources);
-        LOG.debug(overrideFlag.name() + " (Season) priorities " + priorities.toString());
+        LOG.trace(overrideFlag.name() + " (Season) priorities " + priorities.toString());
         SEASON_PRIORITIES.put(overrideFlag, priorities);
     }
 
@@ -181,7 +172,7 @@ public final class OverrideTools {
      */
     private static void putSeriesPriorities(OverrideFlag overrideFlag, String sources) {
         List<String> priorities = resolvePriorities(sources);
-        LOG.debug(overrideFlag.name() + " (Series) priorities " + priorities.toString());
+        LOG.trace(overrideFlag.name() + " (Series) priorities " + priorities.toString());
         SERIES_PRIORITIES.put(overrideFlag, priorities);
     }
 
@@ -193,50 +184,31 @@ public final class OverrideTools {
      */
     private static void putPersonPriorities(OverrideFlag overrideFlag, String sources) {
         List<String> priorities = resolvePriorities(sources);
-        LOG.debug(overrideFlag.name() + " (Person) priorities " + priorities.toString());
+        LOG.trace(overrideFlag.name() + " (Person) priorities " + priorities.toString());
         PERSON_PRIORITIES.put(overrideFlag, priorities);
     }
 
     private static List<String> resolvePriorities(String sources) {
-        List<String> priorities;
-        if (StringUtils.isEmpty(sources)) {
+        final List<String> priorities;
+        if (StringUtils.isBlank(sources)) {
             priorities = Collections.emptyList();
         } else {
-            String newSources = sources.toLowerCase();
-            if (newSources.contains(TYPE_PLUGIN_MOVIE) && !newSources.contains(PLUGIN_MOVIE)) {
-                // replace pattern with video plugin
-                newSources = newSources.replace(TYPE_PLUGIN_MOVIE, PLUGIN_MOVIE);
+            final String newSources = sources.toLowerCase();
+            final Set<String> prios = new LinkedHashSet<>();
+            for (String newSource : newSources.split(",")) {
+                if (StringUtils.isNotBlank(newSource)) {
+                    if (newSource.equalsIgnoreCase(TYPE_MOVIE_SCANNER)) {
+                        prios.addAll(OnlineScannerService.MOVIE_SCANNER);
+                    } else if (newSource.equalsIgnoreCase(TYPE_SERIES_SCANNER)) {
+                        prios.addAll(OnlineScannerService.SERIES_SCANNER);
+                    } else if (newSource.equalsIgnoreCase(TYPE_PERSON_SCANNER)) {
+                        prios.addAll(OnlineScannerService.PERSON_SCANNER);
+                    } else {
+                        prios.add(newSource.toLowerCase());
+                    }
+                }
             }
-            if (newSources.contains(TYPE_PLUGIN_SERIES) && !newSources.contains(PLUGIN_SERIES)) {
-                // replace pattern with series plugin
-                newSources = newSources.replace(TYPE_PLUGIN_SERIES, PLUGIN_SERIES);
-            }
-            if (newSources.contains(TYPE_PLUGIN_PERSON) && !newSources.contains(PLUGIN_PERSON)) {
-                // replace pattern with person plugin
-                newSources = newSources.replace(TYPE_PLUGIN_PERSON, PLUGIN_PERSON);
-            }
-
-            if (newSources.contains(TYPE_ALTERNATE_MOVIE) && (StringUtils.isNotBlank(PLUGIN_MOVIE_ALT) && !newSources.contains(PLUGIN_MOVIE_ALT))) {
-                // replace pattern with alternate video plugin
-                newSources = newSources.replace(TYPE_ALTERNATE_MOVIE, PLUGIN_MOVIE_ALT);
-            }
-
-            if (newSources.contains(TYPE_ALTERNATE_SERIES) && (StringUtils.isNotBlank(PLUGIN_SERIES_ALT) && !newSources.contains(PLUGIN_SERIES_ALT))) {
-                // replace pattern with alternate series plugin
-                newSources = newSources.replace(TYPE_ALTERNATE_SERIES, PLUGIN_SERIES_ALT);
-            }
-            if (newSources.contains(TYPE_ALTERNATE_PERSON) && !newSources.contains(PLUGIN_PERSON_ALT)) {
-                // replace pattern with alternate person plugin
-                newSources = newSources.replace(TYPE_ALTERNATE_PERSON, PLUGIN_PERSON_ALT);
-            }
-
-            priorities = new ArrayList<>(Arrays.asList(newSources.split(",")));
-            priorities.remove(TYPE_PLUGIN_MOVIE);
-            priorities.remove(TYPE_PLUGIN_SERIES);
-            priorities.remove(TYPE_PLUGIN_PERSON);
-            priorities.remove(TYPE_ALTERNATE_MOVIE);
-            priorities.remove(TYPE_ALTERNATE_SERIES);
-            priorities.remove(TYPE_ALTERNATE_PERSON);
+            priorities = new ArrayList<>(prios);
         }
         return priorities;
     }

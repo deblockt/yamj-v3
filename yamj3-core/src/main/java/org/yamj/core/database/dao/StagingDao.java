@@ -22,7 +22,6 @@
  */
 package org.yamj.core.database.dao;
 
-import java.math.BigInteger;
 import java.util.*;
 import org.apache.commons.lang.StringEscapeUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -491,9 +490,9 @@ public class StagingDao extends HibernateDao {
         return this.findByNamedParameters(sb, params);
     }
 
-    public BigInteger countWatchedFiles(StageFile videoFile, String folderName, boolean checkLibrary) {
+    public Date maxWatchedFileDate(StageFile videoFile, String folderName, boolean checkLibrary) {
         StringBuilder sb = new StringBuilder();
-        sb.append("SELECT count(*) ");
+        sb.append("SELECT max(sf.file_date) ");
         sb.append("FROM stage_file sf ");
         sb.append("JOIN stage_directory sd ON sf.directory_id=sd.id and ");
         if (StringUtils.isBlank(folderName)) {
@@ -522,6 +521,46 @@ public class StagingDao extends HibernateDao {
             query.setString("dirName", StringEscapeUtils.escapeSql(folderName.toLowerCase()));
         }
 
-        return (BigInteger) query.uniqueResult();
+        return (Date) query.uniqueResult();
+    }
+
+    public List<StageFile> findVideoStageFiles(Artwork artwork) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("SELECT distinct sf ");
+        
+        long id;
+        if (artwork.getSeries() != null) {
+            id = artwork.getSeries().getId();
+            sb.append("FROM Series ser ");
+            sb.append("JOIN ser.seasons sea ");
+            sb.append("JOIN sea.videoDatas vd ");
+            sb.append("JOIN vd.mediaFiles mf ");
+            sb.append("JOIN mf.stageFiles sf ");
+            sb.append("WHERE sea.id=:id ");
+        } else if (artwork.getSeason() != null) {
+            id = artwork.getSeason().getId();
+            sb.append("FROM Season sea ");
+            sb.append("JOIN sea.videoDatas vd ");
+            sb.append("JOIN vd.mediaFiles mf ");
+            sb.append("JOIN mf.stageFiles sf ");
+            sb.append("WHERE sea.id=:id ");
+        } else {
+            id = artwork.getVideoData().getId();
+            sb.append("FROM VideoData vd ");
+            sb.append("JOIN vd.mediaFiles mf ");
+            sb.append("JOIN mf.stageFiles sf ");
+            sb.append("WHERE vd.id=:id ");
+        }
+        sb.append("AND sf.fileType=:fileType ");
+        sb.append("AND sf.status != :deleted ");
+        
+        Query query = currentSession().createQuery(sb.toString());
+        query.setLong("id", id);
+        query.setParameter("fileType", FileType.VIDEO);
+        query.setBoolean("extra", Boolean.FALSE);
+        query.setParameter("deleted", StatusType.DELETED);
+        query.setCacheable(true);
+        query.setCacheMode(CacheMode.NORMAL);
+        return query.list();
     }
 }
