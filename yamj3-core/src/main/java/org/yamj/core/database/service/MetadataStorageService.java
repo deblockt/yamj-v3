@@ -24,6 +24,7 @@ package org.yamj.core.database.service;
 
 import java.util.*;
 import java.util.Map.Entry;
+import java.util.concurrent.locks.ReentrantLock;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -31,11 +32,14 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.CachePut;
 import org.springframework.dao.support.DataAccessUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.yamj.common.type.MetaDataType;
 import org.yamj.common.type.StatusType;
+import org.yamj.core.DatabaseCache;
 import org.yamj.core.database.dao.ArtworkDao;
 import org.yamj.core.database.dao.CommonDao;
 import org.yamj.core.database.dao.MetadataDao;
@@ -49,12 +53,17 @@ import org.yamj.core.database.model.type.ImageType;
 import org.yamj.core.database.model.type.OverrideFlag;
 import org.yamj.core.service.artwork.ArtworkTools;
 import org.yamj.core.tools.GenreXmlTools;
-import org.yamj.core.tools.MetadataTools;
 
 @Service("metadataStorageService")
 public class MetadataStorageService {
 
     private static final Logger LOG = LoggerFactory.getLogger(MetadataStorageService.class);
+    private static final ReentrantLock COUNTRY_STORAGE_LOCK = new ReentrantLock();
+    private static final ReentrantLock STUDIO_STORAGE_LOCK = new ReentrantLock();
+    private static final ReentrantLock CERTIFICATION_STORAGE_LOCK = new ReentrantLock();
+    private static final ReentrantLock AWARD_STORAGE_LOCK = new ReentrantLock();
+    private static final ReentrantLock GENRE_STORAGE_LOCK = new ReentrantLock();
+  
     @Autowired
     private CommonDao commonDao;
     @Autowired
@@ -133,6 +142,7 @@ public class MetadataStorageService {
     }
 
     @Transactional(readOnly = true)
+    @CachePut(value=DatabaseCache.PERSON, key="#id")
     public Person getRequiredPerson(Long id) {
         final StringBuilder sb = new StringBuilder();
         sb.append("from Person p ");
@@ -148,56 +158,13 @@ public class MetadataStorageService {
      * @param videoData
      */
     public void storeAssociatedEntities(VideoData videoData) {
-
-        if (CollectionUtils.isNotEmpty(videoData.getGenreNames())) {
-            // store new genres
-            for (String genreName : videoData.getGenreNames()) {
-                try {
-                    String targetXml = GenreXmlTools.getMasterGenre(genreName);
-                    this.commonDao.storeNewGenre(genreName, targetXml);
-                } catch (Exception ex) {
-                    LOG.error("Failed to store genre '{}', error: {}", genreName, ex.getMessage());
-                    LOG.trace("Storage error", ex);
-                }
-            }
-        }
-
-        if (CollectionUtils.isNotEmpty(videoData.getStudioNames())) {
-            // store new studios
-            for (String studioName : videoData.getStudioNames()) {
-                try {
-                    this.commonDao.storeNewStudio(studioName);
-                } catch (Exception ex) {
-                    LOG.error("Failed to store studio '{}', error: {}", studioName, ex.getMessage());
-                    LOG.trace("Storage error", ex);
-                }
-            }
-        }
-
-        if (CollectionUtils.isNotEmpty(videoData.getCountryCodes())) {
-            // store new countries
-            for (String countryCode: videoData.getCountryCodes()) {
-                try {
-                    this.commonDao.storeNewCountry(countryCode);
-                } catch (Exception ex) {
-                    LOG.error("Failed to store country '{}', error: {}", countryCode, ex.getMessage());
-                    LOG.trace("Storage error", ex);
-                }
-            }
-        }
-
-        if (MapUtils.isNotEmpty(videoData.getCertificationInfos())) {
-            // store new certifications
-            for (Entry<String,String> entry : videoData.getCertificationInfos().entrySet()) {
-                try {
-                    this.commonDao.storeNewCertification(entry.getKey(), entry.getValue());
-                } catch (Exception ex) {
-                    LOG.error("Failed to store certification '{}'-'{}', error: {}", entry.getKey(), entry.getValue(), ex.getMessage());
-                    LOG.trace("Storage error", ex);
-                }
-            }
-        }
-
+        this.storeCountries(videoData.getCountryCodes());
+        this.storeStudios(videoData.getStudioNames());
+        this.storeCertifications(videoData.getCertificationInfos());
+        this.storeAwards(videoData.getAwardDTOS());
+        this.storeBoxedSets(videoData.getBoxedSetDTOS());
+        this.storeGenres(videoData.getGenreNames());
+        
         if (CollectionUtils.isNotEmpty(videoData.getCreditDTOS())) {
             // store persons
             for (CreditDTO creditDTO : videoData.getCreditDTOS()) {
@@ -205,30 +172,6 @@ public class MetadataStorageService {
                     this.metadataDao.storePerson(creditDTO);
                 } catch (Exception ex) {
                     LOG.error("Failed to store person '{}', error: {}", creditDTO.getName(), ex.getMessage());
-                    LOG.trace("Storage error", ex);
-                }
-            }
-        }
-
-        if (CollectionUtils.isNotEmpty(videoData.getBoxedSetDTOS())) {
-            // store boxed sets
-            for (BoxedSetDTO boxedSetDTO : videoData.getBoxedSetDTOS()) {
-                try {
-                    this.commonDao.storeNewBoxedSet(boxedSetDTO);
-                } catch (Exception ex) {
-                    LOG.error("Failed to store boxed set '{}', error: {}", boxedSetDTO.getName(), ex.getMessage());
-                    LOG.trace("Storage error", ex);
-                }
-            }
-        }
-
-        if (CollectionUtils.isNotEmpty(videoData.getAwardDTOS())) {
-            // store award events
-            for (AwardDTO awardDTO : videoData.getAwardDTOS()) {
-                try {
-                    this.commonDao.storeNewAward(awardDTO);
-                } catch (Exception ex) {
-                    LOG.error("Failed to store award '{}'-'{}', error: {}", awardDTO.getEvent(), awardDTO.getCategory(), ex.getMessage());
                     LOG.trace("Storage error", ex);
                 }
             }
@@ -241,83 +184,141 @@ public class MetadataStorageService {
      * @param series
      */
     public void storeAssociatedEntities(Series series) {
-
-        if (CollectionUtils.isNotEmpty(series.getGenreNames())) {
-            // store new genres
-            for (String genreName : series.getGenreNames()) {
-                try {
-                    String targetXml = GenreXmlTools.getMasterGenre(genreName);
-                    this.commonDao.storeNewGenre(genreName, targetXml);
-                } catch (Exception ex) {
-                    LOG.error("Failed to store genre '{}', error: {}", genreName, ex.getMessage());
-                    LOG.trace("Storage error", ex);
-                }
-            }
-        }
-
-        if (CollectionUtils.isNotEmpty(series.getStudioNames())) {
-            // store new studios
-            for (String studioName : series.getStudioNames()) {
-                try {
-                    this.commonDao.storeNewStudio(studioName);
-                } catch (Exception ex) {
-                    LOG.error("Failed to store studio '{}', error: {}", studioName, ex.getMessage());
-                    LOG.trace("Storage error", ex);
-                }
-            }
-        }
-
-        if (CollectionUtils.isNotEmpty(series.getCountryCodes())) {
-            // store new countries
-            for (String countryCode : series.getCountryCodes()) {
-                try {
-                    this.commonDao.storeNewCountry(countryCode);
-                } catch (Exception ex) {
-                    LOG.error("Failed to store country '{}', error: {}", countryCode, ex.getMessage());
-                    LOG.trace("Storage error", ex);
-                }
-            }
-        }
-
-        if (MapUtils.isNotEmpty(series.getCertificationInfos())) {
-            // store new certifications
-            for (Entry<String,String> entry : series.getCertificationInfos().entrySet()) {
-                try {
-                    this.commonDao.storeNewCertification(entry.getKey(), entry.getValue());
-                } catch (Exception ex) {
-                    LOG.error("Failed to store certification '{}'-'{}', error: {}", entry.getKey(), entry.getValue(), ex.getMessage());
-                    LOG.trace("Storage error", ex);
-                }
-            }
-        }
-
-        if (CollectionUtils.isNotEmpty(series.getBoxedSetDTOS())) {
-            // store boxed sets
-            for (BoxedSetDTO boxedSetDTO : series.getBoxedSetDTOS()) {
-                try {
-                    this.commonDao.storeNewBoxedSet(boxedSetDTO);
-                } catch (Exception ex) {
-                    LOG.error("Failed to store boxed set '{}', error: {}", boxedSetDTO.getName(), ex.getMessage());
-                    LOG.trace("Storage error", ex);
-                }
-            }
-        }
-        
-        if (CollectionUtils.isNotEmpty(series.getAwardDTOS())) {
-          // store award events
-          for (AwardDTO awardDTO : series.getAwardDTOS()) {
-              try {
-                  this.commonDao.storeNewAward(awardDTO);
-              } catch (Exception ex) {
-                  LOG.error("Failed to store award '{}'-'{}', error: {}", awardDTO.getEvent(), awardDTO.getCategory(), ex.getMessage());
-                  LOG.trace("Storage error", ex);
-              }
-          }
-      }
+        this.storeCountries(series.getCountryCodes());
+        this.storeStudios(series.getStudioNames());
+        this.storeCertifications(series.getCertificationInfos());
+        this.storeAwards(series.getAwardDTOS());
+        this.storeBoxedSets(series.getBoxedSetDTOS());
+        this.storeGenres(series.getGenreNames());
 
         for (Season season : series.getSeasons()) {
             for (VideoData videoData : season.getVideoDatas()) {
                 this.storeAssociatedEntities(videoData);
+            }
+        }
+    }
+
+    private void storeCountries(Collection<String> countryCodes) {
+        if (CollectionUtils.isEmpty(countryCodes)) return;
+
+        // store countries
+        for (String countryCode: countryCodes) {
+            if (this.commonDao.getCountry(countryCode) == null) {
+                // double check with lock
+                COUNTRY_STORAGE_LOCK.lock();
+                try {
+                    if (this.commonDao.getCountry(countryCode) == null) {
+                        this.commonDao.saveCountry(countryCode);
+                    }
+                } catch (Exception ex) {
+                    LOG.error("Failed to store country '{}', error: {}", countryCode, ex.getMessage());
+                    LOG.trace("Storage error", ex);
+                } finally {
+                    COUNTRY_STORAGE_LOCK.unlock();
+                }
+            }
+        }
+    }
+
+    private void storeStudios(Collection<String> studioNames) {
+        if (CollectionUtils.isEmpty(studioNames)) return;
+        
+        // store studios
+        for (String studioName : studioNames) {
+            if (commonDao.getStudio(studioName) == null) {
+                // double check with lock
+                STUDIO_STORAGE_LOCK.lock();
+                try {
+                    if (this.commonDao.getStudio(studioName) == null) {
+                        this.commonDao.saveStudio(studioName);
+                    }
+                } catch (Exception ex) {
+                    LOG.error("Failed to store studio '{}', error: {}", studioName, ex.getMessage());
+                    LOG.trace("Storage error", ex);
+                } finally {
+                    STUDIO_STORAGE_LOCK.unlock();
+                }
+            }
+        }
+    }
+    
+    private void storeCertifications(Map<String,String> certificationInfos) {
+        if (MapUtils.isEmpty(certificationInfos)) return;
+        
+        // store certifications
+        for (Entry<String,String> entry : certificationInfos.entrySet()) {
+            if (this.commonDao.getCertification(entry.getKey(), entry.getValue()) == null) {
+                // double check with lock
+                CERTIFICATION_STORAGE_LOCK.lock();
+                try {
+                    if (this.commonDao.getCertification(entry.getKey(), entry.getValue()) == null) {
+                        this.commonDao.saveCertification(entry.getKey(), entry.getValue());
+                    }
+                } catch (Exception ex) {
+                    LOG.error("Failed to store certification '{}'-'{}', error: {}", entry.getKey(), entry.getValue(), ex.getMessage());
+                    LOG.trace("Storage error", ex);
+                } finally {
+                    CERTIFICATION_STORAGE_LOCK.unlock();
+                }
+            }
+        }
+    }
+
+    private void storeAwards(Collection<AwardDTO> awards) {
+        if (CollectionUtils.isEmpty(awards)) return;
+        
+        // store awards
+        for (AwardDTO award : awards) {
+            if (this.commonDao.getAward(award.getEvent(), award.getCategory(), award.getSource()) == null) {
+                // double check with lock
+                AWARD_STORAGE_LOCK.lock();
+                try {
+                    if (this.commonDao.getAward(award.getEvent(), award.getCategory(), award.getSource()) == null) {
+                        this.commonDao.saveAward(award.getEvent(), award.getCategory(), award.getSource());
+                    }
+                } catch (Exception ex) {
+                    LOG.error("Failed to store award '{}'-'{}', error: {}", award.getEvent(), award.getCategory(), ex.getMessage());
+                    LOG.trace("Storage error", ex);
+                } finally {
+                    AWARD_STORAGE_LOCK.unlock();
+                }
+            }
+        }
+    }
+
+    private void storeBoxedSets(Collection<BoxedSetDTO> boxedSets) {
+        if (CollectionUtils.isEmpty(boxedSets)) return;
+        
+        // store boxed sets
+        for (BoxedSetDTO boxedSet : boxedSets) {
+            try {
+                this.commonDao.storeNewBoxedSet(boxedSet);
+            } catch (Exception ex) {
+                LOG.error("Failed to store boxed set '{}', error: {}", boxedSet.getName(), ex.getMessage());
+                LOG.trace("Storage error", ex);
+            }
+        }
+    }
+
+    private void storeGenres(Collection<String> genreNames) {
+        if (CollectionUtils.isEmpty(genreNames)) return;
+
+        // store new genres
+        for (String genreName : genreNames) {
+            if (this.commonDao.getGenre(genreName) == null) {
+                // double check with lock
+                GENRE_STORAGE_LOCK.lock();
+                try {
+                    if (this.commonDao.getGenre(genreName) == null) {
+                        final String targetXml = GenreXmlTools.getMasterGenre(genreName);
+                        this.commonDao.saveGenre(genreName, targetXml);
+                    }
+                } catch (Exception ex) {
+                    LOG.error("Failed to store genre '{}', error: {}", genreName, ex.getMessage());
+                    LOG.trace("Storage error", ex);
+                } finally {
+                    GENRE_STORAGE_LOCK.unlock();
+                }
             }
         }
     }
@@ -707,7 +708,7 @@ public class MetadataStorageService {
 
             if (boxedSetOrder == null) {
                 // create new videoSet
-                BoxedSet boxedSet = commonDao.getBoxedSet(boxedSetDTO.getIdentifier());
+                BoxedSet boxedSet = commonDao.getBoxedSet(boxedSetDTO.getBoxedSetId());
                 if (boxedSet != null) {
                     boxedSetOrder = new BoxedSetOrder();
                     boxedSetOrder.setVideoData(videoData);
@@ -752,7 +753,7 @@ public class MetadataStorageService {
 
             if (boxedSetOrder == null) {
                 // create new videoSet
-                BoxedSet boxedSet = commonDao.getBoxedSet(boxedSetDTO.getIdentifier());
+                BoxedSet boxedSet = commonDao.getBoxedSet(boxedSetDTO.getBoxedSetId());
                 if (boxedSet != null) {
                     boxedSetOrder = new BoxedSetOrder();
                     boxedSetOrder.setSeries(series);
@@ -760,6 +761,7 @@ public class MetadataStorageService {
                     if (boxedSetDTO.getOrdering() != null) {
                         boxedSetOrder.setOrdering(boxedSetDTO.getOrdering());
                     }
+                    
                     series.addBoxedSet(boxedSetOrder);
                     this.commonDao.saveEntity(boxedSetOrder);
                 }
@@ -788,13 +790,12 @@ public class MetadataStorageService {
         int ordering = 0; // ordering counter
 
         for (CreditDTO dto : videoData.getCreditDTOS()) {
-            String identifier = MetadataTools.cleanIdentifier(dto.getName());
             
             // find matching cast/crew
             CastCrew castCrew = null;
             for (CastCrew credit : videoData.getCredits()) {
                 if (credit.getCastCrewPK().getJobType() == dto.getJobType() &&
-                    credit.getCastCrewPK().getPerson().getIdentifier().equalsIgnoreCase(identifier))
+                    credit.getCastCrewPK().getPerson().getIdentifier().equalsIgnoreCase(dto.getIdentifier()))
                 {
                     castCrew = credit;
                     break;
@@ -803,14 +804,14 @@ public class MetadataStorageService {
             
             if (castCrew == null) {
                 // retrieve person
-                Person person = metadataDao.getPerson(identifier);
+                Person person = metadataDao.getPerson(dto.getPersonId());
 
                 if (person == null) {
                     LOG.warn("Person '{}' not found, skipping", dto.getName());
                     // continue with next cast entry
                     continue;
                 }
-                LOG.trace("Found person '{}' for identifier '{}'", person.getName(), identifier);
+                LOG.trace("Found person '{}' for identifier '{}'", person.getName(), dto.getIdentifier());
 
                 // create new association between person and video
                 castCrew = new CastCrew(person, videoData, dto.getJobType());
@@ -913,6 +914,7 @@ public class MetadataStorageService {
     }
 
     @Transactional
+    @CacheEvict(value=DatabaseCache.PERSON, key="#id")
     public void errorPerson(Long id) {
         Person person = metadataDao.getById(Person.class, id);
         if (person != null) {
@@ -922,6 +924,7 @@ public class MetadataStorageService {
     }
 
     @Transactional
+    @CacheEvict(value=DatabaseCache.PERSON, key="#id")
     public void errorFilmography(Long id) {
         Person person = metadataDao.getById(Person.class, id);
         if (person != null) {

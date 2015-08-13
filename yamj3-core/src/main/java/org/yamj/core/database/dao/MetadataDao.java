@@ -28,13 +28,12 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 import org.yamj.common.type.StatusType;
+import org.yamj.core.DatabaseCache;
 import org.yamj.core.database.model.*;
 import org.yamj.core.database.model.dto.CreditDTO;
 import org.yamj.core.database.model.dto.QueueDTO;
-import org.yamj.core.database.model.dto.QueueDTOComparator;
 import org.yamj.core.database.model.type.ArtworkType;
 import org.yamj.core.hibernate.HibernateDao;
-import org.yamj.core.tools.MetadataTools;
 import org.yamj.core.tools.OverrideTools;
 
 @Transactional
@@ -65,7 +64,7 @@ public class MetadataDao extends HibernateDao {
             queueElements.add(queueElement);
         }
 
-        Collections.sort(queueElements, new QueueDTOComparator());
+        Collections.sort(queueElements);
         return queueElements;
     }
 
@@ -81,18 +80,17 @@ public class MetadataDao extends HibernateDao {
         return getByNaturalIdCaseInsensitive(Series.class, IDENTIFIER, identifier);
     }
 
-    @Cacheable(value="person", unless="#result==null")
-    public Person getPerson(String identifier) {
-        return getByNaturalIdCaseInsensitive(Person.class, IDENTIFIER, identifier);
+    @Cacheable(value=DatabaseCache.PERSON, key="#id", unless="#result==null")
+    public Person getPerson(Long id) {
+        return getById(Person.class, id);
     }
 
     public synchronized void storePerson(CreditDTO dto) {
-        String identifier = MetadataTools.cleanIdentifier(dto.getName());
-
-        Person person = this.getPerson(identifier);
+        Person person = getByNaturalIdCaseInsensitive(Person.class, IDENTIFIER, dto.getIdentifier());
+        
         if (person == null) {
             // create new person
-            person = new Person(identifier);
+            person = new Person(dto.getIdentifier());
             person.setSourceDbId(dto.getSource(), dto.getSourceId());
             person.setName(dto.getName(), dto.getSource());
             person.setFirstName(dto.getFirstName(), dto.getSource());
@@ -125,6 +123,9 @@ public class MetadataDao extends HibernateDao {
             // update person in database
             this.updateEntity(person);
         }
+        
+        // set person id for later use
+        dto.setPersonId(person.getId());
     }
 
     public List<Artwork> findPersonArtworks(String identifier) {

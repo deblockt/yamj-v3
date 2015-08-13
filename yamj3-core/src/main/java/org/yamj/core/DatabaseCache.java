@@ -20,26 +20,15 @@
  *      Web: https://github.com/YAMJ/yamj-v3
  *
  */
-package org.yamj.core.database.model.dto;
+package org.yamj.core;
 
-import java.io.Serializable;
-import java.util.Comparator;
+public class DatabaseCache {
 
-public class QueueDTOComparator implements Comparator<QueueDTO>, Serializable {
-
-    private static final long serialVersionUID = 3538761237411750316L;
-
-    @Override
-    public int compare(QueueDTO o1, QueueDTO o2) {
-        if (o1.getDate() == null && o2.getDate() == null) {
-            return 0;
-        }
-        if (o1.getDate() != null && o2.getDate() == null) {
-            return 1;
-        }
-        if (o1.getDate() == null && o2.getDate() != null) {
-            return -11;
-        }
-        return o1.getDate().compareTo(o2.getDate());
-    }
+    public static final String GENRE = "genre";
+    public static final String STUDIO = "studio";
+    public static final String COUNTRY = "country";
+    public static final String CERTIFICATION = "certification";
+    public static final String PERSON = "person";
+    public static final String BOXEDSET = "boxedset";
+    public static final String AWARD = "award";
 }

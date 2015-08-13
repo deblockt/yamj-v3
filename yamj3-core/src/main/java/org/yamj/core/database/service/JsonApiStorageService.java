@@ -53,6 +53,8 @@ public class JsonApiStorageService {
     @Autowired
     private CommonDao commonDao;
     @Autowired
+    private MetadataDao metadataDao;
+    @Autowired
     private MediaDao mediaDao;
     @Autowired
     private ArtworkDao artworkDao;
@@ -331,7 +333,7 @@ public class JsonApiStorageService {
     //<editor-fold defaultstate="collapsed" desc="Genre methods">
     @Transactional
     public boolean addGenre(String name, String targetApi) {
-        Genre genre = commonDao.getGenre(name);
+        Genre genre = this.commonDao.getGenre(name);
         if (genre != null) {
             return false;
         }
@@ -343,7 +345,7 @@ public class JsonApiStorageService {
 
     @Transactional
     public boolean updateGenre(long id, String targetApi) {
-        Genre genre = commonDao.getById(Genre.class, id);
+        Genre genre = commonDao.getGenre(id);
         if (genre == null) {
             return false;
         }
@@ -521,7 +523,7 @@ public class JsonApiStorageService {
         if (id != null && id > 0L) {
             switch (type) {
                 case PERSON:
-                    Person person = commonDao.getById(Person.class, id);
+                    Person person = metadataDao.getPerson(id);
                     if (person != null) {
                         commonDao.markAsUpdated(person.getPhoto());
                         commonDao.markAsUpdated(person);
@@ -529,7 +531,7 @@ public class JsonApiStorageService {
                     }
                     break;
                 case FILMOGRAPHY:
-                    person = commonDao.getById(Person.class, id);
+                    person = metadataDao.getPerson(id);
                     if (person != null) {
                         commonDao.markAsUpdatedForFilmography(person);
                         rescan = true;
@@ -609,7 +611,7 @@ public class JsonApiStorageService {
         if (id != null && id > 0L) {
             switch (type) {
                 case PERSON:
-                    Person person = commonDao.getById(Person.class, id);
+                    Person person = metadataDao.getPerson(id);
                     if (person != null) {
                         this.commonDao.markAsUpdated(person.getPhoto());
                         rescan = true;
@@ -738,7 +740,7 @@ public class JsonApiStorageService {
         }
 
         if (MetaDataType.PERSON == type) {
-            Person person = commonDao.getById(Person.class, id);
+            Person person = metadataDao.getPerson(id);
             if (person == null) {
                 return new ApiStatus(404, "Person for ID " + id + " not found");
             }
